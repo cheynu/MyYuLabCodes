@@ -65,8 +65,8 @@ g(2,1).set_layout_options('Position',[0 0.57 0.9 0.3],'legend_position',[0.89 0.
 % RT
 g(3,1) = gramm('X',cellstr(TBT.Date),'Y',TBT.RT,'subset',TBT.Outcome=="Cor");
 g(3,1).facet_grid([], cellstr(TBT.Task), 'scale', 'free_x','space','free_x', 'column_labels',false);
-g(3,1).stat_violin('half',true,'normalization','area','fill','edge','dodge',0,'width',0.7);
-g(3,1).stat_boxplot('width', 0.15,'notch',false);
+% g(3,1).stat_violin('half',true,'normalization','area','fill','edge','dodge',0,'width',0.7);
+g(3,1).stat_boxplot('width', 0.5,'notch',false);
 g(3,1).set_point_options('base_size',2);
 g(3,1).set_color_options('map',cBlue,'n_color',1,'n_lightness',1);
 g(3,1).axe_property('ylim', ylim_rt, 'xticklabels', {},'XTickLabelRotation', 90, 'XGrid', 'on', 'YGrid', 'on');

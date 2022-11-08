@@ -1,20 +1,14 @@
-function bt = DSRT_DataExtract_Block(filename,plotmark,path_arc)
+function bt = DSRT_DataExtract_Block(filename,varargin)
+p = inputParser;
+addRequired(p,'filename');
+addOptional(p,'plotmark',true);
+addOptional(p,'path_arc',pwd,@isfolder);
+parse(p,filename,varargin{:});
 
-switch nargin
-    case 1
-        plotmark = true;
-        path_arc = pwd;
-    case 2
-        path_arc = pwd;
-    case 3
-        if ~isfolder(path_arc)
-            path_arc = pwd;
-        end
-    otherwise
-        error('Invalid input argument number');
-end
-
-load(filename);
+plotmark = p.Results.plotmark;
+path_arc = p.Results.path_arc;
+%%
+load(filename,'SessionData');
 data = SessionData;
 
 % get sbj name and session date from filename
@@ -22,6 +16,7 @@ dname = split(string(filename), '_');
 newName = dname(1);
 newDate = str2double(dname(5));
 Tstart = str2double(datestr(data.Info.SessionStartTime_MATLAB,'HHMMSS'));
+% Tstart = str2double(char(datetime(data.Info.SessionStartTime_MATLAB,'convertfrom','datenum','Format','HHmmss')));
 newTask = dname(4);
 nTrials = data.nTrials;
 cellCustom = struct2cell(data.Custom);
@@ -145,92 +140,308 @@ savename = 'B_' + upper(newName) + '_' + strrep(num2str(newDate), '-', '_') + '_
     strrep(data.Info.SessionStartTime_UTC,':', '');
 save(savename,'bt');
 %% Plot progress
-cTab10 = [0.0901960784313726,0.466666666666667,0.701960784313725;0.960784313725490,0.498039215686275,0.137254901960784;0.152941176470588,0.631372549019608,0.278431372549020;0.843137254901961,0.149019607843137,0.172549019607843;0.564705882352941,0.403921568627451,0.674509803921569;0.549019607843137,0.337254901960784,0.290196078431373;0.847058823529412,0.474509803921569,0.698039215686275;0.501960784313726,0.501960784313726,0.501960784313726;0.737254901960784,0.745098039215686,0.196078431372549;0.113725490196078,0.737254901960784,0.803921568627451];
-cTab20 = [0.0901960784313726,0.466666666666667,0.701960784313725;0.682352941176471,0.780392156862745,0.901960784313726;0.960784313725490,0.498039215686275,0.137254901960784;0.988235294117647,0.729411764705882,0.470588235294118;0.152941176470588,0.631372549019608,0.278431372549020;0.611764705882353,0.811764705882353,0.533333333333333;0.843137254901961,0.149019607843137,0.172549019607843;0.964705882352941,0.588235294117647,0.592156862745098;0.564705882352941,0.403921568627451,0.674509803921569;0.768627450980392,0.690196078431373,0.827450980392157;0.549019607843137,0.337254901960784,0.290196078431373;0.768627450980392,0.607843137254902,0.576470588235294;0.847058823529412,0.474509803921569,0.698039215686275;0.956862745098039,0.709803921568628,0.807843137254902;0.501960784313726,0.501960784313726,0.501960784313726;0.780392156862745,0.780392156862745,0.776470588235294;0.737254901960784,0.745098039215686,0.196078431372549;0.854901960784314,0.862745098039216,0.549019607843137;0.113725490196078,0.737254901960784,0.803921568627451;0.627450980392157,0.843137254901961,0.890196078431373];
-cGreen = cTab10(3,:);
-cGreen2 = cTab20(5:6,:);
-cRed = cTab10(4,:);
-cRed2 = cTab20(7:8,:);
-cGray = cTab10(8,:);
-cGray2 = cTab20(15:16,:);
-
-cCor_Pre_Late = [cGreen;cRed;cGray];
-cCor_Pre_Late2 = [cGreen2;cRed2;cGray2];
-cCor_Late = [cGreen;cGray];
-
 if plotmark
-    progFig = figure(1); clf(progFig);
-    style = 2;
-    switch style
-        case 1
-            set(progFig, 'Name','ProgFig','unit', 'centimeters', 'position',[1 1 24 14], ...
-            'paperpositionmode', 'auto');
-
-            g(1,1) = gramm('x',bt.TimeElapsed,'y',bt.HT,'color',cellstr(bt.Outcome));
-            g(1,1).facet_grid(cellstr(bt.TrialType),[]);
-            g(1,1).axe_property('xlim',[0 4200],'ylim', [0 3.1],'XGrid', 'on', 'YGrid', 'on');
-            g(1,1).geom_point('alpha',0.8);g.set_point_options('base_size',5);
-            g(1,1).set_names('x','Time(s)','y','HT(s)','color','','lightness','','row','');
-            g(1,1).set_color_options('map',cCor_Pre_Late,'n_color',3,'n_lightness',1);
-            g(1,1).set_order_options('color',{'Cor','Pre','Late'});
-            g(1,1).set_layout_options('legend_position',[0.45,0.75,0.12,0.2]);
-            
-            g(1,2) = gramm('x',bt.TimeElapsed,'y',bt.RT,'color',cellstr(bt.Outcome),'subset',bt.Outcome~="Pre");
-            g(1,2).facet_grid(cellstr(bt.TrialType),[]);
-            g(1,2).axe_property('xlim',[0 4200],'ylim', [0 2.1],'XGrid', 'on', 'YGrid', 'on');
-            g(1,2).geom_point('alpha',0.8);g(1,2).set_point_options('base_size',5);
-            g(1,2).set_names('x','Time(s)','y','RT(s)','color','','lightness','','row','');
-            g(1,2).set_color_options('map',cCor_Late,'n_color',2,'n_lightness',1);
-            g(1,2).set_order_options('color',{'Cor','Late'});
-            g(1,2).no_legend;
-            
-            g.set_title(savename);
-            g.draw();
-            
-            obj_lever = findobj(g(1,1).facet_axes_handles(1,1),'String','Lever');
-            obj_lever.String = '';
-            obj_poke = findobj(g(1,1).facet_axes_handles(2,1),'String','Poke');
-            obj_poke.String = '';
-        case 2
-            set(progFig, 'Name','ProgFig','unit', 'centimeters', 'position',[1 1 24 18], ...
-            'paperpositionmode', 'auto');
-
-            bt_plot = stack(bt,{'HT','RT'});
-            g(1,1) = gramm('x',bt_plot.TimeElapsed,'y',bt_plot.HT_RT,'color',cellstr(bt_plot.Outcome));
-            g(1,1).facet_grid(cellstr(bt_plot.TrialType),bt_plot.HT_RT_Indicator);
-            g(1,1).axe_property('ylim',[0 3],'XGrid', 'on', 'YGrid', 'on');
-            g(1,1).geom_point('alpha',0.7); g(1,1).set_point_options('base_size',5);
-            g(1,1).set_names('x','Time(s)','y','','color','','lightness','','column','','row','');
-            g(1,1).set_color_options('map',cCor_Pre_Late,'n_color',3,'n_lightness',1);
-            g(1,1).set_order_options('color',{'Cor','Pre','Late'},'column',{'HT','RT'});
-%             g(1,1).set_layout_options();
-            g(1,1).no_legend;
-            
-            g(2,1) = gramm('x',bt.TimeElapsed,'y',bt.iTrial,'color',cellstr(bt.Outcome),...
-                'lightness',cellstr(bt.TrialType));
-            g(2,1).axe_property('XGrid', 'on', 'YGrid', 'on');
-            g(2,1).geom_point('alpha',0.7); g(2,1).set_point_options('base_size',5);
-            g(2,1).set_names('x','Time(s)','y','Trial#','color','Color','lightness','Lightness');
-            g(2,1).set_color_options('map',cCor_Pre_Late2,'n_color',3,'n_lightness',2);
-            g(2,1).set_order_options('color',{'Cor','Pre','Late'},'lightness',{'Lever','Poke'});
-            g(2,1).set_layout_options('legend_position',[0.89,0.07,0.13,0.3]);
-
-            g.set_title(savename);
-            g.draw();
-
-            obj_ht = findobj(g(1,1).facet_axes_handles(1,1),'String','HT');
-            obj_ht.String = 'HT (s)';
-            obj_rt = findobj(g(1,1).facet_axes_handles(1,2),'String','RT');
-            obj_rt.String = 'RT (s)';
-    end
-    
-    figPath = fullfile(path_arc,'ProgFig',newName);
-    if ~exist(figPath,'dir')
-        mkdir(figPath);
-    end
-    figFile = fullfile(figPath,savename);
-    saveas(progFig, figFile, 'png');
-    saveas(progFig, figFile, 'fig');
+    plotDailyPerformance(bt,savename,path_arc);
+end
 end
 
+function plotDailyPerformance(bt,savename,path_arc)
+cTab10 = [0.0901960784313726,0.466666666666667,0.701960784313725;0.960784313725490,0.498039215686275,0.137254901960784;0.152941176470588,0.631372549019608,0.278431372549020;0.843137254901961,0.149019607843137,0.172549019607843;0.564705882352941,0.403921568627451,0.674509803921569;0.549019607843137,0.337254901960784,0.290196078431373;0.847058823529412,0.474509803921569,0.698039215686275;0.501960784313726,0.501960784313726,0.501960784313726;0.737254901960784,0.745098039215686,0.196078431372549;0.113725490196078,0.737254901960784,0.803921568627451];
+cBlue = cTab10(1,:);
+cGreen = cTab10(3,:);
+cCyan = cTab10(10,:);
+cRed = cTab10(4,:);
+cGray = cTab10(8,:);
+cCPL = [cGreen;cRed;cGray];
+
+set(groot,'defaultAxesFontName','Helvetica');
+
+FontAxesSz = 7;
+FontLablSz = 9;
+FontTitlSz = 10;
+
+figSize = [2 2 15 17];
+plotsize1 = [8, 4];
+plotsize2 = [3.5, 4];
+xpos = [1.3,11];
+ypos = [1.3,6.6,11.9];
+
+tLim = [0 3600];
+htLim = [0 2500];
+switch bt.Task(1)
+    case "3FPs"
+        rtLim = [0 1000];
+        rtLim2 = [100 600];
+    case {"Wait1","Wait2"}
+        rtLim = [0 2000];
+        rtLim2 = [100 1100];
+        if bt.Task(1) == "Wait1"
+            criterion = [1.5, 2]; % FP 1.5s, RW 2s
+        else
+            criterion = [1.5, 0.6]; % FP 1.5s, RW 2s
+        end
+        idxCri = abs((bt.FP-criterion(1)))<1E-4 & abs((bt.RW-criterion(2)))<1E-4;
+        diffCri = diff([0;idxCri;0]); %
+        prdCri = [find(diffCri==1),find(diffCri==-1)-1];
+end
+idxCor = bt.Outcome == "Cor";
+idxPre = bt.Outcome == "Pre";
+idxLate = bt.Outcome =="Late";
+
+progFig = figure(1); clf(progFig);
+set(progFig, 'unit', 'centimeters', 'position',figSize,...
+    'paperpositionmode', 'auto', 'color', 'w')
+
+dd = num2str(bt.Date(1)); ss = num2str(bt.StartTime(1));
+tt = datetime([dd,'-',ss],'InputFormat','yyyyMMdd-HHmmss');
+uicontrol(progFig,'Style', 'text', 'units', 'centimeters',...
+    'position', [xpos(1)+plotsize1(1)/2-3,figSize(4)-0.6,6,0.5],...
+    'string', append(bt.Subject(1),' / ',datestr(tt,31)), 'fontweight', 'bold',...
+    'backgroundcolor', [1 1 1],'FontSize',FontTitlSz);
+
+% HT - Time
+ha1 = axes;
+set(ha1, 'units', 'centimeters', 'position', [xpos(1) ypos(1), plotsize1],...
+    'nextplot', 'add', 'ylim', htLim, 'xlim', tLim,'tickdir','out',...
+    'TickLength', [0.0200 0.0250],'fontsize',FontAxesSz);
+xlabel('Time in session (sec)','FontSize',FontLablSz)
+ylabel('Hold time (ms)','FontSize',FontLablSz)
+
+modiHT = bt.HT.*1000; modiHT(modiHT>htLim(2)) = htLim(2);
+if ismember(bt.Task(1),["Wait1","Wait2"])
+    for i=1:size(prdCri,1)
+        fill([repelem(bt.TimeElapsed(prdCri(i,1)),2),repelem(bt.TimeElapsed(prdCri(i,2)),2)],...
+            [htLim(1),htLim(2),htLim(2),htLim(1)],cCyan,'EdgeColor','none','FaceAlpha',0.1);
+    end
+end
+line([bt.TimeElapsed,bt.TimeElapsed],[htLim(1),htLim(1)+diff(htLim)/10],...
+    'color',cBlue,'linewidth',0.4);
+scatter(bt.TimeElapsed(idxCor),modiHT(idxCor),30,cCPL(1,:),...
+    'MarkerEdgeAlpha',0.8,'LineWidth',1.1);
+scatter(bt.TimeElapsed(idxPre),modiHT(idxPre),30,cCPL(2,:),...
+    'MarkerEdgeAlpha',0.8,'LineWidth',1.1);
+scatter(bt.TimeElapsed(idxLate),modiHT(idxLate),30,cCPL(3,:),...
+    'MarkerEdgeAlpha',0.8,'LineWidth',1.1);
+if ismember(bt.Task(1),["Wait1","Wait2"])
+    plot(bt.TimeElapsed,bt.FP.*1000,'--','color','k','LineWidth',1);
+end
+
+% RT - Time
+ha2 = axes;
+set(ha2, 'units', 'centimeters', 'position', [xpos(1) ypos(2), plotsize1],...
+    'nextplot', 'add', 'ylim', rtLim, 'xlim', tLim,'tickdir','out',...
+    'TickLength', [0.0200 0.0250],'fontsize',FontAxesSz);
+xlabel('Time in session (sec)','FontSize',FontLablSz);
+ylabel('Reaction time (ms)','FontSize',FontLablSz);
+
+modiRT = (bt.HT - bt.FP).*1000;
+modiRT(modiRT>rtLim(2)) = rtLim(2);
+modiRT(modiRT<rtLim(1)) = rtLim(1);
+if ismember(bt.Task(1),["Wait1","Wait2"])
+    for i=1:size(prdCri,1)
+        fill([repelem(bt.TimeElapsed(prdCri(i,1)),2),repelem(bt.TimeElapsed(prdCri(i,2)),2)],...
+            [rtLim(1),rtLim(2),rtLim(2),rtLim(1)],cCyan,'EdgeColor','none','FaceAlpha',0.1);
+    end
+end
+scatter(bt.TimeElapsed(idxCor),modiRT(idxCor),30,cCPL(1,:),...
+    'MarkerEdgeAlpha',0.8,'LineWidth',1.1);
+%     scatter(bt.TimeElapsed(idxPre),modiRT(idxPre),30,cCPL(2,:),...
+%         'MarkerFaceAlpha',0.8,'LineWidth',1.1);
+scatter(bt.TimeElapsed(idxLate),modiRT(idxLate),30,cCPL(3,:),...
+    'MarkerEdgeAlpha',0.8,'LineWidth',1.1);
+if strcmp(bt.Task(1),"Wait2")
+    plot(bt.TimeElapsed,bt.RW.*1000,'--','color','k','LineWidth',1);
+end
+
+% Sliding Performance - Time
+[xc,yc] = calMovAVG(bt.TimeElapsed,bt.Outcome,...
+    'winRatio',8,'stepRatio',2,'tarStr','Cor');
+[xp,yp] = calMovAVG(bt.TimeElapsed,bt.Outcome,...
+    'winRatio',8,'stepRatio',2,'tarStr','Pre');
+[xl,yl] = calMovAVG(bt.TimeElapsed,bt.Outcome,...
+    'winRatio',8,'stepRatio',2,'tarStr','Late');
+ha3 = axes;
+set(ha3, 'units', 'centimeters', 'position', [xpos(1) ypos(3), plotsize1],...
+    'nextplot', 'add', 'ylim', [0 100], 'xlim', tLim,'tickdir','out',...
+    'TickLength', [0.0200 0.0250],'fontsize',FontAxesSz);
+xlabel('Time in session (sec)','FontSize',FontLablSz);
+ylabel('Performance (%)','FontSize',FontLablSz);
+
+%     mc = 100.*sum(strcmp(bt.Outcome,'Cor'))./length(bt.Outcome);
+%     mp = 100.*sum(strcmp(bt.Outcome,'Pre'))./length(bt.Outcome);
+%     ml = 100.*sum(strcmp(bt.Outcome,'Late'))./length(bt.Outcome);
+%     line(tLim,repelem(mc,2)','LineStyle','--','color',cCPL(1,:),'LineWidth',1.5);
+%     line(tLim,repelem(mp,2)','LineStyle','--','color',cCPL(2,:),'LineWidth',1.5);
+%     line(tLim,repelem(ml,2)','LineStyle','--','color',cCPL(3,:),'LineWidth',1.5);
+plot(xc, yc, 'o', 'linestyle', '-', 'color', cCPL(1,:), ...
+    'markersize', 5, 'linewidth', 1.2, 'markerfacecolor', cCPL(1,:),...
+    'markeredgecolor', 'w');
+plot(xp, yp, 'o', 'linestyle', '-', 'color', cCPL(2,:), ...
+    'markersize', 5, 'linewidth', 1.2, 'markerfacecolor', cCPL(2,:),...
+    'markeredgecolor', 'w');
+plot(xl, yl, 'o', 'linestyle', '-', 'color', cCPL(3,:), ...
+    'markersize', 5, 'linewidth', 1.2, 'markerfacecolor', cCPL(3,:),...
+    'markeredgecolor', 'w');
+
+% Num of Outcome
+ha4 = axes;
+set(ha4, 'units', 'centimeters', 'position', [xpos(2) ypos(1), plotsize2],...
+    'nextplot', 'add', 'tickdir','out',...
+    'TickLength', [0.0200 0.0250],'fontsize',FontAxesSz);
+xlabel('','FontSize',FontLablSz);
+ylabel('Number','FontSize',FontLablSz);
+X = categorical({'Correct','Premature','Late','Dark'});
+X = reordercats(X,{'Correct','Premature','Late','Dark'});
+bh = bar(X,[sum(idxCor),sum(idxPre),sum(idxLate),sum(bt.DarkTry)],...
+    'FaceColor','flat','EdgeColor','none');
+bh.CData(1,:) = cCPL(1,:);
+bh.CData(2,:) = cCPL(2,:);
+bh.CData(3,:) = cCPL(3,:);
+bh.CData(4,:) = [0 0 0];
+xtps = bh.XEndPoints;
+ytps = bh.YEndPoints;
+Labl = string(bh.YData);
+text(xtps,ytps,Labl,'HorizontalAlignment','center',...
+    'VerticalAlignment','bottom','fontsize',FontAxesSz);
+
+switch bt.Task(1)
+    case "3FPs"
+        fplist = unique(round(bt.FP,1))'; % [0.5 1.0 1.5]
+        idxS = abs((bt.FP-fplist(1)))<1E-4;
+        idxM = abs((bt.FP-fplist(2)))<1E-4;
+        idxL = abs((bt.FP-fplist(3)))<1E-4;
+
+        % Reaction time - 3FPs
+        ha5 = axes;
+        set(ha5, 'units', 'centimeters', 'position', [xpos(2) ypos(2), plotsize2],...
+            'nextplot', 'add', 'tickdir','out',...
+            'xlim',[fplist(1).*1000-100,fplist(end).*1000+100],...
+            'ylim',rtLim2,...
+            'TickLength', [0.0200 0.0250],'fontsize',FontAxesSz);
+        xlabel('Foreperiod (ms)','FontSize',FontLablSz);
+        ylabel('Reaction time (ms)','FontSize',FontLablSz);
+        
+        rtS = calRT(bt.HT(idxCor&idxS).*1000,bt.FP(idxCor&idxS).*1000,...
+            'Remove100ms',true,'RemoveOutliers',true,'ToPlot',false,'Calse',false);
+        rtM = calRT(bt.HT(idxCor&idxM).*1000,bt.FP(idxCor&idxM).*1000,...
+            'Remove100ms',true,'RemoveOutliers',true,'ToPlot',false,'Calse',false);
+        rtL = calRT(bt.HT(idxCor&idxL).*1000,bt.FP(idxCor&idxL).*1000,...
+            'Remove100ms',true,'RemoveOutliers',true,'ToPlot',false,'Calse',false);
+        rtS_L = calRT(bt.HT((idxLate|idxCor)&idxS).*1000,bt.FP((idxLate|idxCor)&idxS).*1000,...
+            'Remove100ms',true,'RemoveOutliers',true,'ToPlot',false,'Calse',false);
+        rtM_L = calRT(bt.HT((idxLate|idxCor)&idxM).*1000,bt.FP((idxLate|idxCor)&idxM).*1000,...
+            'Remove100ms',true,'RemoveOutliers',true,'ToPlot',false,'Calse',false);
+        rtL_L = calRT(bt.HT((idxLate|idxCor)&idxL).*1000,bt.FP((idxLate|idxCor)&idxL).*1000,...
+            'Remove100ms',true,'RemoveOutliers',true,'ToPlot',false,'Calse',false);
+        plot(fplist.*1000,[rtS.median,rtM.median,rtL.median],'o-','color',cGreen,...
+            'markersize', 7, 'linewidth', 1.5, 'markerfacecolor', cGreen,...
+            'MarkerEdgeColor', 'w');
+        plot(fplist.*1000,[rtS_L.median,rtM_L.median,rtL_L.median],'^-','color',cGray,...
+            'markersize', 7, 'linewidth', 1.5, 'markerfacecolor', cGray,...
+            'MarkerEdgeColor', 'w');
+        legend({'Cor','Cor+Late'},'fontsize',FontAxesSz,'Location','southeast');
+        legend('boxoff');
+        
+        % Performance - 3FPs
+        ha6 = axes;
+        set(ha6, 'units', 'centimeters', 'position', [xpos(2) ypos(3), plotsize2],...
+            'nextplot', 'add', 'tickdir','out','ylim',[0 100],...
+            'TickLength', [0.0200 0.0250],'fontsize',FontAxesSz);
+        xlabel('Foreperiod (ms)','FontSize',FontLablSz);
+        ylabel('Performance (%)','FontSize',FontLablSz);
+        
+        OutS = bt.Outcome(idxS);
+        OutM = bt.Outcome(idxM);
+        OutL = bt.Outcome(idxL);
+
+        bh2 = bar(fplist.*1000,...
+            [sum(OutS=="Cor")/length(OutS),sum(OutS=="Pre")/length(OutS),sum(OutS=="Late")/length(OutS);...
+             sum(OutM=="Cor")/length(OutM),sum(OutM=="Pre")/length(OutM),sum(OutM=="Late")/length(OutM);...
+             sum(OutL=="Cor")/length(OutL),sum(OutL=="Pre")/length(OutL),sum(OutL=="Late")/length(OutL);].*100,...
+            'FaceColor','flat','EdgeColor','none');
+        bh2(1).FaceColor = cCPL(1,:);
+        bh2(2).FaceColor = cCPL(2,:);
+        bh2(3).FaceColor = cCPL(3,:);
+        xtps1 = bh2(1).XEndPoints; xtps2 = bh2(2).XEndPoints; xtps3 = bh2(3).XEndPoints;
+        ytps1 = bh2(1).YEndPoints; ytps2 = bh2(2).YEndPoints; ytps3 = bh2(3).YEndPoints;
+        Labl1 = string(round(bh2(1).YData)); Labl2 = string(round(bh2(2).YData)); Labl3 = string(round(bh2(3).YData));
+        text(xtps1,ytps1,Labl1,'HorizontalAlignment','center',...
+            'VerticalAlignment','bottom','fontsize',FontAxesSz);
+        text(xtps2,ytps2,Labl2,'HorizontalAlignment','center',...
+            'VerticalAlignment','bottom','fontsize',FontAxesSz);
+        text(xtps3,ytps3,Labl3,'HorizontalAlignment','center',...
+            'VerticalAlignment','bottom','fontsize',FontAxesSz);
+    case {"Wait1","Wait2"}
+        % Reaction time - progress/criterion
+        ha5 = axes;
+        set(ha5, 'units', 'centimeters', 'position', [xpos(2) ypos(2), plotsize2],...
+            'nextplot', 'add', 'tickdir','out','ylim',rtLim2,...
+            'TickLength', [0.0200 0.0250],'fontsize',FontAxesSz);
+        xlabel('','FontSize',FontLablSz);
+        ylabel('Reaction time (ms)','FontSize',FontLablSz);
+
+        xtik = categorical({'InProgress','InCriterion'});
+        xtik = reordercats(xtik,{'InProgress','InCriterion'});
+        rtPro = calRT(bt.HT(idxCor & ~idxCri).*1000,bt.FP(idxCor & ~idxCri).*1000,...
+            'Remove100ms',true,'RemoveOutliers',true,'ToPlot',false,'Calse',false);
+        rtCri = calRT(bt.HT(idxCor & idxCri).*1000,bt.FP(idxCor & idxCri).*1000,...
+            'Remove100ms',true,'RemoveOutliers',true,'ToPlot',false,'Calse',false);
+        rtPro_L = calRT(bt.HT((idxLate|idxCor) & ~idxCri).*1000,bt.FP((idxLate|idxCor) & ~idxCri).*1000,...
+            'Remove100ms',true,'RemoveOutliers',true,'ToPlot',false,'Calse',false);
+        rtCri_L = calRT(bt.HT((idxLate|idxCor) & idxCri).*1000,bt.FP((idxLate|idxCor) & idxCri).*1000,...
+            'Remove100ms',true,'RemoveOutliers',true,'ToPlot',false,'Calse',false);
+        bh2 = bar(xtik,...
+            [rtPro.median(1),rtPro_L.median(1);rtCri.median(1),rtCri_L.median(1)],...
+            'FaceColor','flat','EdgeColor','none');
+%             xtps1 = bh2(1).XEndPoints; xtps2 = bh2(2).XEndPoints;
+%             ytps1 = bh2(1).YEndPoints; ytps2 = bh2(2).YEndPoints;
+%             errorbar([xtps1,xtps2],[ytps1,ytps2],...
+%                 [rtPro.median(2),rtCri.median(2),rtPro_L.median(2),rtCri_L.median(2)],...
+%                 '.k');
+        bh2(1).FaceColor = cCPL(1,:);
+        bh2(2).FaceColor = cCPL(3,:);
+        xtps1 = bh2(1).XEndPoints; xtps2 = bh2(2).XEndPoints;
+        ytps1 = bh2(1).YEndPoints; ytps2 = bh2(2).YEndPoints;
+        Labl1 = string(round(bh2(1).YData)); Labl2 = string(round(bh2(2).YData));
+        text(xtps1,ytps1,Labl1,'HorizontalAlignment','center',...
+            'VerticalAlignment','bottom','fontsize',FontAxesSz);
+        text(xtps2,ytps2,Labl2,'HorizontalAlignment','center',...
+            'VerticalAlignment','bottom','fontsize',FontAxesSz);
+        le = legend({'Cor','Cor+Late'},'Location','northwest');
+        legend('boxoff');
+        le.ItemTokenSize(1) = 10;
+
+        % Performance - progress/criterion
+        ha6 = axes;
+        set(ha6, 'units', 'centimeters', 'position', [xpos(2) ypos(3), plotsize2],...
+            'nextplot', 'add', 'tickdir','out','ylim',[0 100],...
+            'TickLength', [0.0200 0.0250],'fontsize',FontAxesSz);
+        xlabel('','FontSize',FontLablSz);
+        ylabel('Performance (%)','FontSize',FontLablSz);
+        
+        outPro = bt.Outcome(~idxCri);
+        outCri = bt.Outcome(idxCri);
+        bh3 = bar(xtik,...
+            [sum(outPro=="Cor")/length(outPro),sum(outPro=="Pre")/length(outPro),sum(outPro=="Late")/length(outPro);...
+             sum(outCri=="Cor")/length(outCri),sum(outCri=="Pre")/length(outCri),sum(outCri=="Late")/length(outCri)].*100,...
+            'FaceColor','flat','EdgeColor','none');
+        bh3(1).FaceColor = cCPL(1,:);
+        bh3(2).FaceColor = cCPL(2,:);
+        bh3(3).FaceColor = cCPL(3,:);
+        xtps1 = bh3(1).XEndPoints; xtps2 = bh3(2).XEndPoints; xtps3 = bh3(3).XEndPoints;
+        ytps1 = bh3(1).YEndPoints; ytps2 = bh3(2).YEndPoints; ytps3 = bh3(3).YEndPoints;
+        Labl1 = string(round(bh3(1).YData)); Labl2 = string(round(bh3(2).YData)); Labl3 = string(round(bh3(3).YData));
+        text(xtps1,ytps1,Labl1,'HorizontalAlignment','center',...
+            'VerticalAlignment','bottom','fontsize',FontAxesSz);
+        text(xtps2,ytps2,Labl2,'HorizontalAlignment','center',...
+            'VerticalAlignment','bottom','fontsize',FontAxesSz);
+        text(xtps3,ytps3,Labl3,'HorizontalAlignment','center',...
+            'VerticalAlignment','bottom','fontsize',FontAxesSz);
+end
+%%
+figPath = fullfile(path_arc,'ProgFig',bt.Subject(1));
+[~,~] = mkdir(figPath);
+figFile = fullfile(figPath,savename);
+print(progFig, figFile, '-dpng');
+saveas(progFig, figFile, 'fig');
 end
