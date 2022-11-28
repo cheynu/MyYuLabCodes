@@ -1,4 +1,4 @@
-function bt = med_DataExtract(filename,plotmark,path_arc)
+function bt = med_DataExtract(filename,varargin)
 % _________________________________________________________________________
 % File:               med_DataExtract.m
 % Created on:         Sept 25, 2021
@@ -34,42 +34,22 @@ function bt = med_DataExtract(filename,plotmark,path_arc)
 % 50: premature release
 % 51: late release
 %% 
-switch nargin
-    case 1
-        plotmark = [1,0];
-        path_arc = pwd;
-    case 2
-        if plotmark
-            plotmark = [1,0];
-            path_arc = pwd;
-        else
-            plotmark = [0,0];
-            path_arc = pwd;
-        end
-    case 3
-        if plotmark
-            plotmark = [1,0];
-        else
-            plotmark = [0,0];
-        end
-        if ~isfolder(path_arc)
-            path_arc = pwd;
-        end
-    otherwise
-        assert(false,'Input variable number is not suitable.');
-end
+p = inputParser;
+addRequired(p,'filename');
+addOptional(p,'plotmark',true);
+addOptional(p,'path_arc',pwd,@isfolder);
+parse(p,filename,varargin{:});
+
+plotmark = p.Results.plotmark;
+path_arc = p.Results.path_arc;
+%% 
 session_name = string(strrep(filename(1:end-4), '_', '-'));
 Time_events = med_to_tec_new(filename, 100);
 metadata = med_to_protocol(filename);
 session_date = str2double(metadata.Date);
 
 fig_path = fullfile(path_arc,'ProgFig',metadata.SubjectName);
-if any(plotmark)
-    if ~exist(fig_path,'dir')
-        mkdir(fig_path);
-    end
-end
-
+[~,~] = mkdir(fig_path);
 %% find out press-time & release-time
 % time of presses
 ind_leverpress = find(Time_events(:, 2)==1);
@@ -359,7 +339,7 @@ switch protocol_name
         end
 end
 %% progress plot (old version)
-if plotmark(1)
+if plotmark
     good_col=[0 1 0]*0.75;
 
     figure(1); clf(1)
@@ -418,101 +398,9 @@ if plotmark(1)
     text(init_loc, 0.9*max(get(gca, 'ylim')), [sprintf('%2.1f %s', per_success*100), '%'], 'color', good_col)
     ylabel ('Number')
 
-    savename=fullfile(fig_path, savename);
+    savename = fullfile(fig_path, savename);
     saveas(gcf, savename, 'png')
     saveas(gcf, savename, 'fig')
 end
-%% progress plot with histogram
-if plotmark(2)
-    cDarkGray = [0.3,0.3,0.3];
-    cGreen = [0.4660 0.6740 0.1880];
-    cRed = [0.6350 0.0780 0.1840];
-    cYellow = [0.9290 0.6940 0.1250];
-    cBlue = [0,0.6902,0.9412];
-    cGray = [0.4 0.4 0.4];
-    colorlist1 = {cDarkGray,cGreen,cRed,cYellow};
-    colorlist2 = {cGreen,cYellow};
 
-    figure(2); clf(2)
-    set(gcf, 'unit', 'centimeters', 'position',[1 1 22 18], 'paperpositionmode', 'auto' )
-
-    bt_plot = bt;
-    bt_plot.PressDur = bt_plot.PressDur .* 1000;
-    bt_plot.RT = bt_plot.RT .* 1000;
-    bt_plot.Type(ind_inter_trial_press) = 2; % for sorting
-    bt_plot = sortrows(bt_plot,9,'descend');
-    bt_plot.Type = string(bt_plot.Type);
-    bt_plot.Type(bt_plot.Type=="1") = "Correct";
-    bt_plot.Type(bt_plot.Type=="-1") = "Premature";
-    bt_plot.Type(bt_plot.Type=="-2") = "Late";
-    bt_plot.Type(bt_plot.Type=="2") = "Inter-trial";
-    if isempty(find(bt_plot.Type=="Late", 1))
-        colorlist1 = {cDarkGray,cGreen,cRed};
-    end
-
-    subplot(2, 10, [1:7])
-
-    s1 = scatterhistogram(bt_plot,'ReleaseTime','PressDur','GroupVariable','Type',...
-        'BinWidths',[60;50],'HistogramDisplayStyle','smooth','ScatterPlotLocation','SouthWest',...
-        'LineWidth',1.5,'Color',colorlist1,'MarkerSize',30,'MarkerAlpha',0.7,'LegendVisible','off');
-    s1.XLimits = [0 4000];
-    s1.YLimits = [0 2800];
-    s1.XLabel = 'Time (s)';
-    s1.YLabel = 'Press duration (ms)';
-    s1.LegendTitle = '';
-    s1.ScatterPlotProportion = 0.8;
-
-    subplot(2, 10, [9 10]);
-    init_loc = 1.5;
-    set(gca, 'xlim', [1.5 10], 'ylim', [0 9], 'nextplot', 'add')
-    plot(init_loc,     8, 'o', 'linewidth', 1, 'markerfacecolor', cGreen, 'markeredgecolor', cGreen)
-    text(init_loc+0.7, 8, 'Correct')
-    plot(init_loc,     7, 'o', 'linewidth', 1, 'markerfacecolor', cRed, 'markeredgecolor', cRed)
-    text(init_loc+0.7, 7, 'Premature')
-    plot(init_loc,     6, 'o', 'linewidth', 1, 'markerfacecolor', cYellow, 'markeredgecolor', cYellow)
-    text(init_loc+0.7, 6, 'Late')
-    plot(init_loc,     5, 'o', 'linewidth', 1, 'markerfacecolor', cDarkGray, 'markeredgecolor', cDarkGray)
-    text(init_loc+0.7, 5, 'Inter-trial')
-    axis off
-    % axes(hainfo)
-    text(init_loc, 4, strrep(metadata.ProtocolName, '_', '-'))
-    text(init_loc, 3, upper(metadata.SubjectName))
-    text(init_loc, 2, metadata.Date)
-    text(init_loc, 1, metadata.StartTime)
-    text(init_loc, 0, t2c_label)
-
-    subplot(2, 10, [11:17])
-    bt_rt_plot = bt_plot(~isnan(bt_plot.ToneTime),:);
-
-    s2 = scatterhistogram(bt_rt_plot,'ToneTime','RT','GroupVariable','Type',...
-        'BinWidths',[60;50],'HistogramDisplayStyle','smooth','ScatterPlotLocation','SouthWest',...
-        'LineWidth',1.5,'Color',colorlist2,'MarkerSize',30,'MarkerAlpha',0.7,'LegendVisible','off');
-    s2.XLimits = [0 4000];
-    s2.YLimits = [0 1300];
-    s2.XLabel = 'Time (s)';
-    s2.YLabel = 'Reaction Time (ms)';
-    s2.LegendTitle = '';
-    s2.ScatterPlotProportion = 0.8;
-
-    subplot(2, 10, [19 20])
-    set(gca, 'nextplot', 'add', 'xlim', [0 5], 'xtick', [])
-    hb1=bar([1], length(ind_correct_release));
-    set(hb1, 'EdgeColor', cGreen, 'facecolor', 'none', 'linewidth', 2);
-    hb2=bar([2], length(ind_premature_release));
-    set(hb2, 'EdgeColor', cRed, 'facecolor', 'none', 'linewidth', 2);
-    hb2=bar([3], length(ind_late_release));
-    set(hb2, 'EdgeColor', cYellow, 'facecolor', 'none', 'linewidth', 2);
-    hb3=bar([4], length(ind_inter_trial_press));
-    set(hb3, 'EdgeColor', cDarkGray, 'facecolor', 'none', 'linewidth', 2);
-    axis 'auto y'
-    % add success rate:
-    per_success=length(ind_correct_release)/(length(ind_correct_release)+length(ind_premature_release)+length(ind_late_release));
-    text(init_loc, 0.9*max(get(gca, 'ylim')), [sprintf('%2.1f %s', per_success*100), '%'], 'color', cGreen)
-    ylabel ('Number')
-
-    savename_newB = ['NB_' upper(metadata.SubjectName) '_' strrep(metadata.Date, '-', '_') '_' strrep(metadata.StartTime, ':', '')];
-    savename_newB = fullfile(fig_path, savename_newB);
-    saveas(gcf, savename_newB, 'png')
-    saveas(gcf, savename_newB, 'fig')
-end
 end

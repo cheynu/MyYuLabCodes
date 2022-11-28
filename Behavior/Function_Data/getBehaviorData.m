@@ -14,7 +14,7 @@ function b = getBehaviorData(tarPath)
         case '.mat'
             bData = load(fullfile(pathm,[expName,dataext]));
             if contains(expName,'B_') && ~isfield(bData,'bt') % Med processed data
-                b = b;
+                b = bData.b;
             else % Bpod data
                 cfilem = cellstr(filem);
                 btAll = cell(1,length(cfilem));

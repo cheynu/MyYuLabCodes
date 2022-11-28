@@ -307,15 +307,33 @@ text(xtps,ytps,Labl,'HorizontalAlignment','center',...
 switch bt.Task(1)
     case "3FPs"
         fplist = unique(round(bt.FP,1))'; % [0.5 1.0 1.5]
-        idxS = abs((bt.FP-fplist(1)))<1E-4;
-        idxM = abs((bt.FP-fplist(2)))<1E-4;
-        idxL = abs((bt.FP-fplist(3)))<1E-4;
-
+        switch length(fplist)
+            case 3
+                idxS = abs((bt.FP-fplist(1)))<1E-4;
+                idxM = abs((bt.FP-fplist(2)))<1E-4;
+                idxL = abs((bt.FP-fplist(3)))<1E-4;
+            case 2
+                idxS = abs((bt.FP-fplist(1)))<1E-4;
+                idxM = abs((bt.FP-fplist(2)))<1E-4;
+                idxL = false(size(bt.FP));
+                fplist = [fplist NaN];
+            case 1
+                idxS = abs((bt.FP-fplist(1)))<1E-4;
+                idxM = false(size(bt.FP));
+                idxL = false(size(bt.FP));
+                fplist = [fplist NaN NaN];
+            case 0
+                idxS = false(size(bt.FP));
+                idxM = false(size(bt.FP));
+                idxL = false(size(bt.FP));
+                fplist = nan(1,3);
+        end
+        
         % Reaction time - 3FPs
         ha5 = axes;
         set(ha5, 'units', 'centimeters', 'position', [xpos(2) ypos(2), plotsize2],...
             'nextplot', 'add', 'tickdir','out',...
-            'xlim',[fplist(1).*1000-100,fplist(end).*1000+100],...
+            'xlim',[min(fplist).*1000-100,max(fplist).*1000+100],...
             'ylim',rtLim2,...
             'TickLength', [0.0200 0.0250],'fontsize',FontAxesSz);
         xlabel('Foreperiod (ms)','FontSize',FontLablSz);

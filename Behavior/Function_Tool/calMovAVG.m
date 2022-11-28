@@ -20,19 +20,19 @@ avgMethod = pp.Results.avgMethod;
 if ~isempty(winSize)
     win = winSize;
 else
-    win = floor(length(time)/winRatio);
+    win = ceil(length(time)/winRatio);
 end
 if ~isempty(stepSize)
     step = stepSize;
 else
-    step = max(1,floor(win/stepRatio));
+    step = ceil(win/stepRatio);
 end
 
 countStart = 1;
 xo = [];
 yo = [];
-while countStart+win-1 <= length(time)
-    thisWin = (countStart:countStart+win-1)';
+while countStart <= length(time)
+    thisWin = (countStart:min(countStart+win-1,length(time)))';
     thisOutcome = outcome(thisWin);
     switch class(thisOutcome)
         case 'logical'
