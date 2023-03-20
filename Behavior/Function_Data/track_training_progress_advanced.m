@@ -1,9 +1,8 @@
-function bout=track_training_progress_advanced(filename)
+function [bout, b2] =track_training_progress_advanced(filename)
 
 % Jianing Yu Oct 30 2019
 
 % for wait 1, 2 training, the following information matters:
-
 
 session_name = strrep(filename(1:end-4), '_', '-');
 Time_events=med_to_tec_new(filename, 100);
@@ -48,6 +47,10 @@ end;
 
 if time_leverrelease(end)<time_leverpress(end)
     time_leverpress(end)=[];
+end;
+
+if length(time_leverrelease)>length(time_leverpress)
+    time_leverrelease(end)=[];
 end;
 
 press_durs = (time_leverrelease-time_leverpress)*1000;
@@ -99,8 +102,7 @@ for i = 1:length(ind_bad_presses)
     
     if ~isempty(recent_lighton) && ~isempty(recent_lightoff) && recent_lightoff > recent_lighton
         inter_trial_presses=[inter_trial_presses ind_bad_presses(i)];
-    end;
-    
+    end;    
 end;
 
 
@@ -143,10 +145,10 @@ try
     end;
 end;
 
-figure(20); clf(20)
+figure(10); clf(10)
 set(gcf, 'unit', 'centimeters', 'position',[2 2 20 18], 'paperpositionmode', 'auto' )
 
-ha1 = subplot(2, 5, [1 2 3 4 ])
+ha1 = subplot(2, 5, [1 2 3 4 ]);
 set(gca, 'nextplot', 'add', 'ylim', [0 2800], 'xlim', [0 3600])
 line([time_leverlighton time_leverlighton], [0 500], 'color', 'b')
 line([time_leverlightoff time_leverlightoff], [0 500], 'color', 'b', 'linestyle', ':')
@@ -176,7 +178,7 @@ end;
 xlabel ('Time (s)')
 ylabel ('Press duration (ms)')
 
-hainfo=subplot(2, 5, 5)
+hainfo=subplot(2, 5, 5);
 
 set(gca, 'xlim', [1.95 10], 'ylim', [0 9], 'nextplot', 'add')
 plot(2, 8, 'o', 'linewidth', 1, 'color', good_col)
@@ -193,7 +195,7 @@ text(2.5, 5, 'Dark')
 
 axis off
 
-ha2 = subplot(2, 5, [6 7 8 9])
+ha2 = subplot(2, 5, [6 7 8 9]);
 set(gca, 'nextplot', 'add', 'ylim', [0 1000], 'xlim', [0 3600])
 plot(time_tone(ind_tone_late==1), reaction_time(ind_tone_late==1), 'ro', 'linewidth', 1, 'markerfacecolor', 'r', 'markersize', 4)
 plot(time_tone(ind_tone_late==0), reaction_time(ind_tone_late==0), 'o', 'linewidth', 1, 'color', good_col, 'markersize', 4)
@@ -202,26 +204,25 @@ plot(time_tone(ind_tone_late==0), reaction_time(ind_tone_late==0), 'o', 'linewid
 xlabel ('Time (s)')
 ylabel ('Reaction time (ms)')
 
-ha3 = subplot(2, 5, [10])
+ha3 = subplot(2, 5, [10]);
 set(gca, 'nextplot', 'add', 'ylim', [0 1000], 'xlim', [0 5], 'xtick', [])
 hb1=bar([1], length(ind_good_presses));
 set(hb1, 'EdgeColor', good_col, 'facecolor', 'none', 'linewidth', 2);
-hb2=bar([2], length(ind_premature_releases))
+hb2=bar([2], length(ind_premature_releases));
 set(hb2, 'EdgeColor', 'r', 'facecolor', 'none', 'linewidth', 2);
-hb2=bar([3], length(ind_late_releases))
+hb2=bar([3], length(ind_late_releases));
 set(hb2, 'EdgeColor', 'r', 'facecolor', 'r', 'linewidth', 2);
-hb3=bar([4], length(inter_trial_presses))
+hb3=bar([4], length(inter_trial_presses));
 set(hb3, 'EdgeColor', 'k', 'facecolor', 'none', 'linewidth', 2);
 axis 'auto y'
 
 % add success rate:
 per_success=length(ind_good_presses)/(length(ind_good_presses)+length(ind_premature_releases)+length(ind_late_releases));
-
 text(3, 0.8*max(get(gca, 'ylim')), [sprintf('%2.1f %s', per_success*100), '%'], 'color', good_col)
 
 ylabel ('Number')
 %% save data
-bout.Metadata        =      med_to_protocol(filename);
+bout.Metadata        =      Behavior.MED.med_to_protocol(filename);
 axes(hainfo)
 
 text(2, 4, strrep(bout.Metadata.ProtocolName, '_', '-'))
@@ -245,12 +246,19 @@ bout.FPs             =      FPs';
 
 savename = ['B_' upper(bout.Metadata.SubjectName) '_' strrep(bout.Metadata.Date, '-', '_') '_' strrep(bout.Metadata.StartTime, ':', '')];
 b=bout;
-save (savename, 'b')
+save(savename, 'b')
 
-mkdir('Fig');
-savename=fullfile(pwd, 'Fig', savename);
-
+if ~exist('Fig', 'dir')
+    mkdir('Fig');
+end;
+close(10)
+% savename=fullfile(pwd, 'Fig', savename)
 % print (gcf,'-dpng', [savename], '-bestfit')
-print (gcf,'-dpdf', [savename], '-bestfit')
-print (gcf,'-dpng', [savename])
-saveas(gcf, savename, 'fig')
+% print (gcf,'-dpdf', [savename], '-bestfit')
+% print (gcf,'-dpng', [savename])
+% saveas(gcf, savename, 'fig')
+
+b2 = Behavior.SRT.BehaviorClass(b);
+% b2.Plot();
+% b2.Print()
+b2.Save();
