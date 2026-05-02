@@ -1,0 +1,1 @@
+ % MakeAVIDLCLive(aGoodName); MakeAVIApproach(aGoodName);

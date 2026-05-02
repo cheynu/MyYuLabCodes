@@ -1,0 +1,67 @@
+function alignedData = alignTimeSeries(data, time, tEvent, tPre, tPost)
+    % Inputs:
+    %   data: Matrix (time points x trials) of location data
+    %   time: Vector (time points x 1) shared across trials
+    %   tEvent: Vector (trials x 1) of event times
+    %   tPre: Time before event (scalar)
+    %   tPost: Time after event (scalar)
+    %
+    % Output:
+    %   alignedData: 3D array (trials x segment time points x 1)
+    % JY 2025 with GROK 
+    % initially devloped to align paw rising data to the moment of crossing
+    % a time point.
+  
+    % Get dimensions
+    [nTrials, nTimePoints] = size(data);
+    if length(time) ~= nTimePoints
+        error('Length of time vector must match number of time points in data');
+    end
+
+    % Determine segment length based on tPre and tPost
+
+    segmentTime = (tPre:tPost); % 1 ms segment
+    nSegmentPoints = length(segmentTime);
+
+    % Preallocate output (trials x segment points x 1)
+    alignedData = NaN(nTrials, nSegmentPoints, 1);
+
+    % Process each trial
+    for i = 1:nTrials
+        % Define the time window for this trial
+        tStart = tEvent(i) + tPre;
+        tEnd = tEvent(i) + tPost;
+
+        if isnan(tEvent(i))
+            continue
+        end
+
+        time_ = time-tEvent(i);
+        data_i = data(i, :);
+
+
+        data_ = NaN(1, nSegmentPoints);
+
+        % Interpolate or match data_i onto segmentTime
+        % Use interp1 to map data_i from time_ to segmentTime
+        alignedData(i, :, 1) = interp1(time_, data_i, segmentTime, 'linear', NaN);
+
+        for j=1:time_
+            []
+
+
+        end
+
+        % Find indices in the shared time vector for this window
+        validIdx = time >= tStart & time <= tEnd;
+
+        % Check if the window matches the expected segment length
+        if sum(validIdx) == nSegmentPoints
+            % Extract the segment directly
+            alignedData(i, :, 1) = data(i, validIdx);
+        else
+            % If the window doesn’t fully fit (e.g., near edges), leave as NaN
+            continue;
+        end
+    end
+end

@@ -1,0 +1,327 @@
+function MakeSeqVideoDualView2023(obj, FrameInfo, WSOut,  tEvents, varargin)
+
+% 10/4/2023
+% code adapted from MakeEphysVideoDualView2023
+
+% 10/23/2022
+% inputs: 
+% r: R array
+% RarraTable: this is produced by MakeBehaviorTableFromR(r)
+% WSOut: wave surfer data
+% revision on 12/19/2022 
+% Frame signals are now derived from LED time
+% revised from MakeEphysVideoDualView.m
+
+% takes r, and a bunch of event times (as well as the event names)
+% r.Video
+% ans = 
+%   struct with fields:
+% 
+%                   tframe: [0 20 30 40 50 60 70 80 90 100 110 120 130 140 … ]
+%                     mask: [900×1000 logical]
+%                      ROI: [4134674 4137084 4139323 4140341 4141433 4140569 … ]
+%               SeqVidFile: {2×1 cell}
+%              SeqFileIndx: [1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 … ]
+%             SeqFrameIndx: [1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 … ]
+%                   tLEDon: [90370 116040 160200 297721 321051 342131 361611 … ]
+%                  tLEDonR: [77×1 double]
+%                  tFrameR: [6.3201e+03 6.3401e+03 6.3501e+03 6.3601e+03 … ]
+%           tframe_TopView: [0 20 30 40 50 60 70 80 90 100 110 120 130 140 … ]
+%       SeqVidFile_TopView: {2×1 cell}
+%      SeqFileIndx_TopView: [1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 … ]
+%     SeqFrameIndx_TopView: [1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 … ]
+
+set_matlab_default;
+eventName = 'UnknownEvents';
+timeRange = [-1000 1000]; % in ms
+makemov = 1;
+reMake = 1;
+ANM = obj.Subject;
+
+if nargin>2
+    for i=1:2:size(varargin,2)
+        switch varargin{i}
+            case 'eventName'
+                eventName = varargin{i+1};
+            case 'timeRange'
+                timeRange = varargin{i+1};
+            case 'protocol'
+                protocol =  varargin{i+1};
+            case 'reMake'
+                reMake =  varargin{i+1};
+            otherwise
+                errordlg('unknown argument')
+        end
+    end
+end
+
+    frame_rate = 1/median(diff(FrameInfo.SideView.tframe));
+    frames_expected = diff(timeRange)*frame_rate;
+
+
+% low-pass filter
+[bfilt, afilt] = butter(4, 200*2/10000, 'low');
+%% Make videos based on event time
+for i =1:length(tEvents);  % tEvents in ms
+    itEvent = tEvents(i); % this is the time of the event. Time is defined in ephys domain, in ms
+
+    itPress              =        [];
+    IndPress           =        [];
+    iRT                    =       [];
+    iFP                    =        [];
+    itRelease          =        [];
+    itTrigger            =        [];
+    itReward           =        [];
+    iOutcome          =        [];
+
+    switch eventName
+        case {'CuedPress', 'UnCuedPress','Press', 'PressStim', 'PressNoStim'}
+            itPress              =       itEvent;
+            IndPress           =       obj.PressTime == itPress/1000;
+            iRT                    =       obj.ReactionTime(IndPress)*1000;
+            iFP                    =        obj.FP(IndPress);
+            itRelease          =        obj.ReleaseTime(IndPress)*1000;
+            itTrigger            =        obj.ToneTime(IndPress)*1000;
+            itReward           =        [];
+            iOutcome          =        obj.Outcome(IndPress);
+
+        case {'Trigger', 'TriggerStim','TriggerNoStim'}
+
+            itTrigger           =       itEvent;
+            IndTrigger           =       obj.ToneTime == itTrigger/1000;
+            itPress              =       obj.PressTime(IndTrigger)/1000;
+            iRT                    =       obj.ReactionTime(IndTrigger)*1000;
+            iFP                    =        obj.FP(IndTrigger);
+            itRelease          =        obj.ReleaseTime(IndTrigger)*1000;
+            itReward           =        [];
+            iOutcome          =        obj.Outcome(IndTrigger);
+
+
+
+        otherwise
+    end
+
+    % side video
+    tFrames_side                    =       FrameInfo.SideView.tFrameMED; % in ms
+    IndFrames2ExtractSide    =       find(tFrames_side>=itEvent + timeRange(1) & tFrames_side<=itEvent + timeRange(2));
+    tFrames_top                    =         FrameInfo.TopView.tFrameMED; % in ms
+    IndFrames2ExtractTop  =       find(tFrames_top>=itEvent + timeRange(1) & tFrames_top<=itEvent + timeRange(2));
+
+    if isempty(IndFrames2ExtractSide)
+        disp(['No video recorded during this event, #', num2str(i)])
+        continue
+    end;
+    tFramesSide                     =       tFrames_side(IndFrames2ExtractSide);
+    if length(IndFrames2ExtractSide)<0.9*frames_expected
+        disp(['Not enough frames for this event, #', num2str(i)])
+        continue
+    end;
+
+    % find original frame times
+    tFrameSideOrg                 =       FrameInfo.SideView.tframe(IndFrames2ExtractSide); % this is the original frame time, e.g., 0, 20. 30, ...
+%     IndFrames2ExtractTop     =       find(r.Video.tframe_TopView>=tFrameSideOrg(1) & r.Video.tframe_TopView<=tFrameSideOrg(end));
+    tFrameTopOrg                  =       FrameInfo.TopView.tframe(IndFrames2ExtractTop);
+
+    if length(unique(FrameInfo.SideView.SeqFileIndx(IndFrames2ExtractSide)))>1 || length(unique(FrameInfo.TopView.SeqFileIndx(IndFrames2ExtractTop)))>1 
+         disp('Found index in two videos. Skipping this event')
+        continue
+    end;
+
+    % Get the index within the video file
+    IndFrames2ExtractSide_      =       FrameInfo.SideView.SeqFrameIndx(IndFrames2ExtractSide);          
+    IndFrames2ExtractTop_       =       FrameInfo.TopView.SeqFrameIndx(IndFrames2ExtractTop);     
+    SideVideoFileName               =      FrameInfo.SideView.SeqVidFile{FrameInfo.SideView.SeqFileIndx(IndFrames2ExtractSide(1))};
+    TopVideoFileName                =      FrameInfo.TopView.SeqVidFile{FrameInfo.TopView.SeqFileIndx(IndFrames2ExtractTop(1))};
+
+
+   % get wave data
+    if ~isempty(WSOut)
+        t_WS                     =           WSOut.TimeInMED; % in ms
+        ind_WS                 =           find(t_WS>=itEvent + timeRange(1)  & t_WS<itEvent + timeRange(2) );
+        tf_WS                    =           t_WS(ind_WS); % this is the time of current event segment
+
+        if isempty(tf_WS)
+            continue
+        end;
+
+        tf_WS                    =           tf_WS;
+        f_Press                  =           filtfilt(bfilt, afilt, detrend(WSOut.Signals(ind_WS, find(contains(WSOut.Labels, 'Press'))), 'constant'));
+        f_Press                  =            normalize(f_Press, 'range', [2 8]);
+        f_Trigger               =           filtfilt(bfilt, afilt, WSOut.Signals(ind_WS, find(contains(WSOut.Labels, 'Trigger'))));
+        f_Trigger               =           f_Trigger-f_Trigger(1);
+
+        f_Opto                 =           filtfilt(bfilt, afilt, detrend(WSOut.Signals(ind_WS, find(contains(WSOut.Labels, 'Opto'))), 'constant'));
+        f_Opto                  =            normalize(f_Opto, 'range', [0 1]);
+
+        % make new f_Trigger
+        f_TriggerNew    =             zeros(size(f_Trigger));
+        above_th           =              find(f_Trigger>1);
+        if ~isempty(above_th)
+            tTriggerBeg          =            tf_WS(above_th(1));
+            tTriggerEnd          =            tf_WS(above_th(end));
+            f_TriggerNew(above_th(1):above_th(end)) = 1;
+        else
+            tTriggerBeg          =            [];
+            tTriggerEnd          =            [];
+        end;
+
+    else
+        t_WS                    =           [];
+        tf_WS                   =           [];
+        f_Press                 =           [];
+        f_Trigger              =           [];
+        f_Approach         =           [];
+        f_Opto                 =           [];
+        tLaserBeg          =             [];
+        tLasesEnd          =             [];
+        f_OptoNew         =            [];
+        tTriggerBeg          =           [];
+        tTriggerEnd          =           [];
+        f_TriggerNew    =            [];
+    end;
+
+
+    if makemov
+
+        thisFolder = fullfile(pwd, 'VideoClips', eventName);
+        if ~exist(thisFolder, 'dir')
+            mkdir(thisFolder)
+        end
+
+        VidMetaName = fullfile(thisFolder, [eventName '_' num2str(round(itEvent)) 'ms']);
+        % check if this file exists, and if we want to remake the file
+        check_this_file = dir([VidMetaName '.avi']);
+        if ~isempty(check_this_file)  && ~reMake % found a video clip with the same name, and we don't want to remake the video clip
+            sprintf('This video exists: %s', [VidMetaName '.avi'])
+            continue % move on
+        end;
+
+
+        % Extract frames:
+        [img_seq, headerInfo] = ReadJpegSEQ(SideVideoFileName,[IndFrames2ExtractSide_(1) IndFrames2ExtractSide_(end)]); % ica is image cell array
+        FramesToShow = linspace(1, length(IndFrames2ExtractSide_), 5);
+        [img_seq_top, headerInfo] = ReadJpegSEQ(TopVideoFileName,[IndFrames2ExtractTop_(1) IndFrames2ExtractTop_(end)]); % ica is image cell array
+        FramesToShowTop = linspace(1, length(IndFrames2ExtractTop_), 5);
+
+        img_seq                 =       img_seq(:, 1); % now we have a bunch of cell,each one corresponding to a single frame
+        img_seq_top          =       img_seq_top(:, 1);
+
+            % make meta
+        moviename = strrep([eventName '_' num2str(round(itEvent)) 'ms'], '.', '_');
+
+        % save meta file
+        VidMeta.itPress           =     itPress;
+        VidMeta.IndPress        =     IndPress;
+
+        VidMeta = struct('tPress', itPress,'tRelease', itRelease, 'tTrigger', itTrigger, 'tReward', itReward, ...
+            'IndPress', IndPress, 'RT', iRT, 'FP', iFP, 'Outcome', iOutcome, 'SideViewVideo', SideVideoFileName,...
+            'SideViewFrames', IndFrames2ExtractSide_, 'SideVideoFrameTimes', tFrameSideOrg, ...
+            'SideVideoFrameTimesR', tFramesSide, ...
+            'TopViewVideo', TopVideoFileName, ...
+            'TopViewFrames', IndFrames2ExtractTop_, 'TopVideoFrameTimes', tFrameTopOrg, 'Today', date);
+
+        save(VidMetaName, 'VidMeta');
+
+        writerObj = VideoWriter([moviename '.avi']);
+        writerObj.FrameRate = 20; % this is 5 x slower
+        % set the seconds per image
+        % open the video writer
+        open(writerObj);
+        rand_num = round(rand*1000);
+        hf_rand = figure(rand_num); 
+
+        for im = 1:length(img_seq)
+            framesize_side = size(img_seq{im});
+            side_height = 8;
+            side_width = framesize_side(2)*side_height/framesize_side(1);
+
+            tic
+            clf(rand_num); 
+            set(hf_rand, 'name', 'side view', 'units', 'centimeters', 'position', [15 1 20 12]);
+            [~, im_top] = min(abs(tFrameTopOrg- tFrameSideOrg(im)));
+            ha2= axes;
+            set(ha2, 'units', 'centimeters', 'position', [0 3 side_width side_height], 'nextplot', 'add', 'xlim',[0 framesize_side(2)], 'ylim', [0 framesize_side(1)], 'ydir','reverse')
+            axis off
+            max_width = 0+side_width;
+            max_height = side_height+3;
+            set(hf_rand, 'position', [15 1 max_width max_height])
+
+            % plot this frame:
+            imagesc(img_seq{im}, [0 200]);
+            colormap('gray')
+            if ~isempty(im_top)
+                framesize_top = size(img_seq_top{im_top});
+                top_height = 8;
+                top_width = framesize_top(2)*top_height/framesize_top(1);
+                ha2b= axes;
+                set(ha2b, 'units', 'centimeters', 'position', [0+side_width+0.25 3 top_width top_height], 'nextplot', 'add', 'xlim',[0 framesize_top(2)], 'ylim', [0 framesize_top(1)], 'ydir','reverse')
+                axis off
+                max_width = 0+side_width+0.25+top_width;
+                max_height = top_height+3;
+                set(hf_rand, 'position', [15 1 max_width max_height])
+                % plot this frame:
+                if length(im_top)>1 ||  isempty(img_seq_top{im_top}) || isnan(im_top)
+                 end;
+                imagesc(img_seq_top{im_top}, [0 200]);
+                colormap('gray')
+% 
+%                 frame_size =  size(img_seq_top{im_top});
+%                 max_size = max(frame_size);
+%                 set(ha2b, 'xlim', [0 max_size], 'ylim', [0 max_size])
+            end;
+ 
+                ha0= axes;
+                set(ha0, 'units', 'centimeters', 'position', [0 2 max_width*0.5 1], 'nextplot', 'add', 'xlim',[0 10], 'ylim', [0 10], 'ydir', 'reverse');
+                time_of_frame = sprintf('%2.3f', (tFramesSide(im)- tFramesSide(1)+timeRange(1))/1000);
+                hframetime = text(1, 2.5, [time_of_frame ' s'], 'color', 'k', 'fontsize', 10, 'fontname', 'dejavu sans',  'fontweight', 'bold');
+                text(1, 6.5,  sprintf('FP: %2.0fms | RT: %2.0fms | %s', iFP, iRT, iOutcome{1}), 'color','k', 'fontweight', 'bold','fontsize', 7,'fontname', 'dejavu sans');
+                text(1, 9.5,  sprintf('rat: %s | date: %s', ANM, obj.Date), 'color','k', 'fontweight', 'bold','fontsize', 7,'fontname', 'dejavu sans');
+                axis off
+
+                % also plot trigger signal and release time
+                eventcolor = [0.6 0.6 0.6];
+                ha3=axes; cla
+                ylim = [0 10];
+                set(ha3, 'units', 'centimeters', 'position', [max_width*0.125 0.75 max_width*0.75 1], 'nextplot', 'add', ...
+                    'xlim',[min(tFramesSide) max(tFramesSide)], 'ylim', ylim,'ytick',[], ...
+                    'xtick', [-2000:500:8000]+itEvent , 'xticklabel', num2cell([-2000:500:8000]),'XTickLabelRotation', 0);
+
+                plotshaded([itPress itRelease], [ylim(1) ylim(1); ylim(2) ylim(2)], [136, 164, 124]/255);
+                hline = line([tFramesSide(im)  tFramesSide(im)], ylim, 'color', [121, 120, 255]/255, 'linewidth', .5);
+
+                % plot press signal from wave surfer
+                plot(ha3, tf_WS, f_Press, 'color', [28 49 94]/255,'linewidth', 2)
+
+                % plot laser signal if there is any
+
+                if ~isempty(itTrigger) && ~isnan(itTrigger)
+                    line([itTrigger itTrigger], ylim, 'color', eventcolor, 'linewidth', 1, 'linestyle',  '-')
+                    text(itTrigger, ylim(2), 'Trigger', 'fontname', 'dejavu sans','fontsize', 8,'fontweight', 'bold','rotation', 0)
+                end;
+
+                if ~isempty(itReward)
+                    line([itReward  itReward], ylim, 'color', eventcolor, 'linewidth', 1, 'linestyle', '-')
+                    text(itReward, ylim(2), 'Reward', 'fontname', 'dejavu sans','fontsize', 8,'fontweight', 'bold','rotation', 0)
+                end;
+
+                uicontrol('style', 'text', 'unit', 'centimeters', 'position', [1 14.2, 10, 0.5],...
+                    'string', [SideVideoFileName], 'fontsize', 9, 'fontname', 'dejavu sans',  'HorizontalAlignment', 'left', 'fontweight', 'bold');
+
+                uicontrol('style', 'text', 'unit', 'centimeters', 'position', [1 13.7, 10, 0.5],...
+                    'string', [ANM ' | ' eventName  ' | t=' num2str(round(itEvent)) 'ms'], 'fontsize', 9, 'fontname', 'dejavu sans', 'HorizontalAlignment', 'left',  'fontweight', 'bold');
+
+                frame = getframe(hf_rand) ;
+                writeVideo(writerObj, frame);
+                sprintf('Time spent making frame %2.0d: %2.2fs', im, toc)
+   
+        end
+        close(hf_rand)
+        % close the writer object
+        close(writerObj);
+        % move video
+        movefile( [moviename '.avi'], thisFolder)
+
+        %%
+    end;
+end;
+% end;

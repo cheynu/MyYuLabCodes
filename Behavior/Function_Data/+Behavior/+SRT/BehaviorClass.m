@@ -102,13 +102,23 @@ classdef BehaviorClass
             obj.ReactionTime = [];
             obj.ToneTime = [];
             obj.FP = bdata.FPs;
-
-            uFPs = unique(bdata.FPs);
-            if any(uFPs == 750)
+            
+            % if strcmp(obj.Protocol, 'ThreeFPsMixedBpod') ||strcmp(obj.Protocol, 'ThreeFPsMixedBpodReInf1500ms') ||strcmp(obj.Protocol, 'ThreeFPsMixedBpodReInf500ms') ||strcmp(obj.Protocol,  'ThreeFPsMixedBpodProbe')
+            if any(contains(lower(obj.Protocol),lower({'ThreeFPsMixedBpod','ThreeFPsMixedBpodReInf1500ms','ThreeFPsMixedBpodReInf500ms','ThreeFPsMixedBpodProbe'})))
+                obj.MixedFP = [500 1000 1500];
+            elseif any(contains(lower(obj.Protocol),lower('ThreeFPsMixedBpod750_1250_1750')))
+                obj.MixedFP = [750 1250 1750]; 
+            elseif any(contains(lower(obj.Protocol), lower('TwoFPsMixedBpodProbe')))
                 obj.MixedFP = [750 1500];
-            else
-                obj.MixedFP = [500 1000 1500] ; % default, subject to change though.
-            end;
+            elseif any(contains(lower(obj.Protocol), lower('TwoFPsMixedBpodProbeAdd250msFP')))
+                obj.MixedFP = [250 750 1500];    
+            end
+            % uFPs = unique(bdata.FPs);
+            % if any(uFPs == 750)
+            %     obj.MixedFP = [750 1500];
+            % else
+            %     obj.MixedFP = [500 1000 1500] ; % default, subject to change though.
+            % end
             obj.Outcome = [];
 
             for i =1:length(bdata.PressTime)
@@ -136,8 +146,8 @@ classdef BehaviorClass
                 end;
             end;
 
-            obj.WinSize         =           [];
-            obj.StepSize        =           [];
+            obj.WinSize         =           25;
+            obj.StepSize        =           5;
 
             obj.RTbinEdges                              =          [0:obj.BinSize:2];
             obj.HoldTbinEdges                         =          [0:obj.BinSize:4];
@@ -509,8 +519,8 @@ classdef BehaviorClass
                 200 200 200]/255;
             FPColors = [45, 205, 223]/255;
 
-            figure(obj.Fig2); clf(obj.Fig2)
-            set(obj.Fig2, 'unit', 'centimeters', 'position',[2 2 11.5 11.5], 'paperpositionmode', 'auto', 'color', 'w')
+            hf = figure(obj.Fig2); clf(hf)
+            set(hf, 'unit', 'centimeters', 'position',[2 2 11.5 11.5], 'paperpositionmode', 'auto', 'color', 'w')
 
             plotsize2 = [3, 3.5];
             plotsize4 = [4 2.5];
@@ -527,17 +537,35 @@ classdef BehaviorClass
             SessionMaxInSecs = 3600;
 
             if isempty(obj.Treatment)
-                uicontrol('Style', 'text', 'parent', obj.Fig2, 'units', 'normalized', 'position', [0.25 0.95 0.5 0.04],...
-                    'string', [obj.Subject ' | ' obj.Session(1:end-7)], 'fontweight', 'bold', 'backgroundcolor', [1 1 1], 'fontsize', 10);
+                % uicontrol('Style', 'text', 'parent', obj.Fig2, 'units', 'normalized', 'position', [0.25 0.95 0.5 0.04],...
+                %     'string', [obj.Subject ' | ' obj.Session(1:end-7)], 'fontweight', 'bold', 'backgroundcolor', [1 1 1], 'fontsize', 10);
+                annotation(hf, 'textbox', ...
+                    'Units', 'normalized', ...
+                    'Position', [0.25 0.95 0.5 0.04], ...
+                    'String', [obj.Subject ' | ' obj.Session(1:end-7)], ...
+                    'FontWeight', 'bold', ...
+                    'FontSize', 10, ...
+                    'BackgroundColor', [1 1 1], ...
+                    'HorizontalAlignment', 'center', ...
+                    'EdgeColor', 'none');
             else
-                uicontrol('Style', 'text', 'parent', obj.Fig2, 'units', 'normalized', 'position', [0.25 0.95 0.5 0.04],...
-                    'string', [obj.Subject ' | ' obj.Session(1:end-7) ' | ' obj.Treatment], 'fontweight', 'bold', 'backgroundcolor', [1 1 1], 'fontsize', 10);
-            end;
+                % uicontrol('Style', 'text', 'parent', obj.Fig2, 'units', 'normalized', 'position', [0.25 0.95 0.5 0.04],...
+                %     'string', [obj.Subject ' | ' obj.Session(1:end-7) ' | ' obj.Treatment], 'fontweight', 'bold', 'backgroundcolor', [1 1 1], 'fontsize', 10);
+                annotation(hf, 'textbox', ...
+                    'Units', 'normalized', ...
+                    'Position', [0.25 0.95 0.5 0.04], ...
+                    'String', [obj.Subject ' | ' obj.Session(1:end-7) ' | ' obj.Treatment], ...
+                    'FontWeight', 'bold', ...
+                    'FontSize', 10, ...
+                    'BackgroundColor', [1 1 1], ...
+                    'HorizontalAlignment', 'center', ...
+                    'EdgeColor', 'none');
+            end
 
 
             if obj.PassedWarmedUp
                 % Plot PDF of hold duration, again
-                axes('parent', obj.Fig2, 'units', 'centimeters', 'position', [xloc_pdf  yloc_bottomrow plotsize4], 'nextplot', 'add', 'ylim', [0 prctile(cell2mat(obj.PDF_HoldT), 99.9)*1.25], 'ytick', [0:1:12], ...
+                axes('parent', hf, 'units', 'centimeters', 'position', [xloc_pdf  yloc_bottomrow plotsize4], 'nextplot', 'add', 'ylim', [0 prctile(cell2mat(obj.PDF_HoldT), 99.9)*1.25], 'ytick', [0:1:12], ...
                     'xtick', [0:500:HoldTimeMax],'xlim', [0 HoldTimeMax], 'yscale', 'linear', 'xticklabelrotation', 30, 'FontSize', 7);
 
                 for k =1:length(obj.MixedFP)    % first, draw FPs
@@ -554,7 +582,7 @@ classdef BehaviorClass
                 ylabel('PDF(1/s)')
 
                 % Plot CDF of hold duration
-                axes('parent', obj.Fig2, 'units', 'centimeters', 'position', [xloc_pdf  yloc_bottomrow+3 plotsize4], 'nextplot', 'add', 'ylim', [0 1], 'ytick', [0:0.2:1], ...
+                axes('parent', hf, 'units', 'centimeters', 'position', [xloc_pdf  yloc_bottomrow+3 plotsize4], 'nextplot', 'add', 'ylim', [0 1], 'ytick', [0:0.2:1], ...
                     'xtick', [0:500:HoldTimeMax], 'xticklabel', [],'xlim', [0 HoldTimeMax], 'yscale', 'linear', 'xticklabelrotation', 0, 'FontSize', 7);
 
                 % Plot CDF of press duration for different FPs
@@ -571,7 +599,7 @@ classdef BehaviorClass
                 ylabel('CDF')
 
                 % Violin plot of the responses
-                axes('parent', obj.Fig2, 'units', 'centimeters', 'position', [xloc_pdf  yloc_1strow plotsize4], 'nextplot', 'add', 'ylim', [0 HoldTimeMax ], ...
+                axes('parent', hf, 'units', 'centimeters', 'position', [xloc_pdf  yloc_1strow plotsize4], 'nextplot', 'add', 'ylim', [0 HoldTimeMax ], ...
                     'yscale', 'linear', 'xticklabelrotation', 0, 'FontSize', 7);
 
                 HoldTimeAll = [];
@@ -605,7 +633,7 @@ classdef BehaviorClass
                 ylabel('Hold time (ms)')
 
                 % Plot performance for different FPs
-                axes('parent', obj.Fig2, 'units', 'centimeters', 'position', [xloc_secondcol, yloc_bottomrow, plotsize2], 'nextplot', 'add', 'ylim', [0 100], ...
+                axes('parent', hf, 'units', 'centimeters', 'position', [xloc_secondcol, yloc_bottomrow, plotsize2], 'nextplot', 'add', 'ylim', [0 100], ...
                     'xlim', [-0.5 2+4*(length(obj.MixedFP)-1)+2], 'xtick', [2:4:2+4*(length(obj.MixedFP)-1)], 'xticklabel', num2cell(obj.MixedFP),...
                     'xticklabelrotation', 30);
 
@@ -624,7 +652,7 @@ classdef BehaviorClass
 
             % Plot symbols and their meanings
             hainfo=axes;
-            set(hainfo,'parent', obj.Fig2,  'units', 'centimeters', 'position', [xloc_secondcol+plotsize2(1) 1+yloc_bottomrow 2 1], ...
+            set(hainfo,'parent', hf,  'units', 'centimeters', 'position', [xloc_secondcol+plotsize2(1) 1+yloc_bottomrow 2 1], ...
                 'xlim', [2 9], 'ylim', [5 8], 'nextplot', 'add');
 
             plot(2, 8, 's', 'linewidth', 1, 'color', col_perf(1, :),'markerfacecolor', col_perf(1, :));
@@ -639,7 +667,7 @@ classdef BehaviorClass
             if obj.PassedWarmedUp
                 % plot reaction time
                 ha5 = axes;
-                set(ha5,'parent', obj.Fig2, 'units', 'centimeters', 'position', [xloc_secondcol, yloc_1strowright, plotsize2], 'nextplot', 'add', ...
+                set(ha5,'parent', hf, 'units', 'centimeters', 'position', [xloc_secondcol, yloc_1strowright, plotsize2], 'nextplot', 'add', ...
                     'ylim', [100 500], ...
                     'xlim', [obj.MixedFP(1)-100 obj.MixedFP(end)+100], 'xtick', obj.MixedFP, 'xticklabel', num2cell(obj.MixedFP),...
                     'xticklabelrotation', 0);
@@ -662,7 +690,318 @@ classdef BehaviorClass
             xlabel('Foreperiod (ms)')
             ylabel('Reaction time (ms)')
 
-        end;
+        end
+        
+        function newPlot(obj)
+            try
+                set_matlab_default
+            catch
+                disp('You do not have "set_matlab_default"' )
+            end
+
+            fontsize = 8;
+            
+            if isempty(obj.PressTime)
+                clc
+                disp('No responses in this session')
+                return
+            end
+
+            % plot the entire session
+            col_perf = [85 225 0
+                255 0 0
+                200 200 200]/255;
+
+            hf = figure(obj.Fig1); clf(hf)
+            set(hf, 'unit', 'centimeters', 'position',[2 2 18 18], 'paperpositionmode', 'auto', 'color', 'w')
+
+            HoldTimeMax = 2500;
+            SessionMaxInSecs = 3600;
+
+            if isempty(obj.Treatment)
+                % uicontrol('Style', 'text', 'parent',obj.Fig1, 'units', 'normalized', 'position', [0.25 0.95 0.5 0.04],...
+                %     'string', [obj.Subject ' | ' obj.Session], 'fontweight', 'bold', 'backgroundcolor', [1 1 1], 'fontsize', 10);
+                annotation(hf, 'textbox', ...
+                    'Units', 'normalized', ...
+                    'Position', [0.25 0.95 0.5 0.04], ...
+                    'String', [obj.Subject ' | ' obj.Session], ...
+                    'FontWeight', 'bold', ...
+                    'FontSize', 10, ...
+                    'BackgroundColor', [1 1 1], ...
+                    'HorizontalAlignment', 'center', ...
+                    'EdgeColor', 'none');
+            else
+                % uicontrol('Style', 'text', 'parent',obj.Fig1, 'units', 'normalized', 'position', [0.25 0.95 0.5 0.04],...
+                %     'string', [obj.Subject ' | ' obj.Session ' | ' obj.Treatment], 'fontweight', 'bold', 'backgroundcolor', [1 1 1], 'fontsize', 10);
+                annotation(hf, 'textbox', ...
+                    'Units', 'normalized', ...
+                    'Position', [0.25 0.95 0.5 0.04], ...
+                    'String', [obj.Subject ' | ' obj.Session ' | ' obj.Treatment], ...
+                    'FontWeight', 'bold', ...
+                    'FontSize', 10, ...
+                    'BackgroundColor', [1 1 1], ...
+                    'HorizontalAlignment', 'center', ...
+                    'EdgeColor', 'none');
+            end
+
+
+            % responses from different FPs should have diferent sizes
+            ynow        = 14;
+            xnow        = 2;
+            plotsize1   = [2, 2.5];
+            plotsize0   = [6 4];
+            plotsize2   = [3 4];
+            
+            ynow2       = ynow - plotsize1(2)-1.5;
+            ynow3       = ynow2 - plotsize1(2)-1.5;
+            ynow4       = ynow3 - plotsize0(2)-.75;
+
+            % warm-up stage
+            symbolSize = 5;
+            ind_premature_presses = strcmp(obj.Outcome, 'Premature') & obj.Stage == 0;
+            ha0 = axes;
+            set(ha0, 'parent', hf,'units', 'centimeters', 'position', [xnow ynow, plotsize1],...
+                'nextplot', 'add', 'ylim', [0 HoldTimeMax], 'xlim', [1 SessionMaxInSecs], 'yscale', 'linear', 'fontsize', fontsize)
+            
+            axes(ha0)
+            
+            % plot press times
+            line(ha0, [obj.PressTime(obj.Stage == 0); obj.PressTime(obj.Stage == 0)], [0 250], 'color', 'b')
+            
+            scatter(ha0, obj.ReleaseTime(ind_premature_presses), ...
+                1000*(obj.ReleaseTime(ind_premature_presses) - obj.PressTime(ind_premature_presses)), ...
+                25, col_perf(2, :), 'o','Markerfacealpha', 0.8, 'linewidth', 1, 'SizeData', symbolSize);
+            
+            ind_late_presses = strcmp(obj.Outcome, 'Late')& obj.Stage == 0;
+            LateDur =   1000*(obj.ReleaseTime(ind_late_presses) - obj.PressTime(ind_late_presses));
+            LateDur(LateDur>2500) = 2499;
+            scatter(ha0, obj.ReleaseTime(ind_late_presses), LateDur, ...
+                25, col_perf(3, :), 'o', 'Markerfacealpha', 0.8, 'linewidth', 1, 'SizeData', symbolSize);
+
+            ind_good_presses = strcmp(obj.Outcome, 'Correct') & obj.Stage == 0;
+            scatter(ha0, obj.ReleaseTime(ind_good_presses), ...
+                1000*(obj.ReleaseTime(ind_good_presses) - obj.PressTime(ind_good_presses)), ...
+                25, col_perf(1, :), 'o', 'Markerfacealpha', 0.8, 'linewidth', 1.05, 'SizeData', symbolSize);
+            
+            n_warmup = sum(obj.Stage == 0);
+            title(sprintf('%s|%2.0d','warm-up',n_warmup))
+            axis 'auto x'
+            
+            ylabel('Press duration (msec)')
+            
+            if obj.PassedWarmedUp
+                
+            xnow = xnow + plotsize1(1)+0.2;
+            density_range  = [0 6];
+            tbins = [0:0.05:HoldTimeMax/1000];
+            bw = 0.07;
+            tbin_centers = 1000*(tbins(1:end-1)+diff(tbins([1 2]))/2);
+            FP_colors ={'#9BBEC8', '#427D9D', '#164863'};
+            
+            for k = 1:length(obj.MixedFP)
+                
+                ha1(k) = axes;
+                set(ha1(k), 'parent', hf,'units', 'centimeters', 'position', [xnow ynow, plotsize1],...
+                    'nextplot', 'add', 'ylim', [0 HoldTimeMax], 'xlim', [1 SessionMaxInSecs], 'yscale', 'linear', 'ytick',[], 'fontsize', fontsize)
+          
+                if k ==1
+                    xlabel('Time in session (sec)')
+                    
+                else
+                    set(ha1(k), 'ytick', [])
+                end
+                
+                plotshaded([1 SessionMaxInSecs], [0 0; obj.MixedFP(k)  obj.MixedFP(k)], [.8 .8 .8])
+                                
+                % plot press times
+                line(ha1(k), [obj.PressTime(obj.Stage == 1&obj.FP == obj.MixedFP(k)); obj.PressTime(obj.Stage == 1&obj.FP == obj.MixedFP(k))], [0 250], 'color', 'b')
+                n_press = sum(obj.Stage == 1&obj.FP == obj.MixedFP(k));
+                symbolSize = 5+5*(k-1);
+                ind_premature_presses = strcmp(obj.Outcome, 'Premature')  & obj.FP == obj.MixedFP(k) & obj.Stage == 1;
+                scatter(ha1(k), obj.ReleaseTime(ind_premature_presses), ...
+                    1000*(obj.ReleaseTime(ind_premature_presses) - obj.PressTime(ind_premature_presses)), ...
+                    15, col_perf(2, :), 'o','Markerfacealpha', 0.8, 'linewidth', 1, 'SizeData', symbolSize);
+                
+                ind_late_presses = strcmp(obj.Outcome, 'Late') & obj.FP == obj.MixedFP(k) & obj.Stage == 1;
+                LateDur =   1000*(obj.ReleaseTime(ind_late_presses) - obj.PressTime(ind_late_presses));
+                LateDur(LateDur>2500) = 2499;
+                scatter(ha1(k), obj.ReleaseTime(ind_late_presses), LateDur, ...
+                    15, col_perf(3, :), 'o', 'Markerfacealpha', 0.8, 'linewidth', 1, 'SizeData', symbolSize);
+                
+                ind_good_presses = strcmp(obj.Outcome, 'Correct') & obj.FP == obj.MixedFP(k) & obj.Stage == 1;
+                scatter(ha1(k), obj.ReleaseTime(ind_good_presses), ...
+                    1000*(obj.ReleaseTime(ind_good_presses) - obj.PressTime(ind_good_presses)), ...
+                    15, col_perf(1, :), 'o', 'Markerfacealpha', 0.8, 'linewidth', 1, 'SizeData', symbolSize);
+ 
+                title(sprintf('%2.1f s|%2.0d', obj.MixedFP(k)/1000, n_press))
+                
+                % Plot histogram
+                ha2(k) = axes;
+                set(ha2(k), 'parent', hf,'units', 'centimeters', 'position', [xnow ynow2, plotsize1],...
+                    'nextplot', 'add', 'xlim', [0 HoldTimeMax], 'ylim', density_range, 'yscale', 'linear', 'fontsize', fontsize)
+                plotshaded([0 obj.MixedFP(k)], [density_range; density_range]', [.8 .8 .8])
+                if k ==1
+                    xlabel('Release time(sec)')
+                else
+                    set(ha2(k), 'ytick', [])
+                end               
+                Press_Duration = obj.ReleaseTime(obj.FP == obj.MixedFP(k)) - obj.PressTime(obj.FP == obj.MixedFP(k));
+                PressCounts = histcounts(Press_Duration, tbins, 'Normalization', 'pdf');
+                bar(tbin_centers, PressCounts, 1, 'FaceColor', FP_colors{k}, 'EdgeColor', 'none')                
+                PDF_Press = ksdensity(Press_Duration, tbins, 'Bandwidth', bw);
+                plot(tbins*1000, PDF_Press, 'color', 'm')
+                if k ==1
+                    ylabel('Density(1/s)')
+                end
+                
+                % Plot reaction time
+                ha3(k) = axes;
+                set(ha3(k), 'parent', hf,'units', 'centimeters', 'position', [xnow ynow3, plotsize1],...
+                    'nextplot', 'add', 'ylim', [0 1000], 'xlim', [0 2], 'yscale', 'linear', 'fontsize', fontsize)
+                
+                this_rt = 1000*Press_Duration - obj.MixedFP(k);
+                this_rt = this_rt(this_rt>100 & this_rt<2000);
+                % compute median and IQR
+                med_rt = median(this_rt);
+                iqr_rt = iqr(this_rt);
+                std_rt = std(this_rt);
+                
+                hv = violinplot(this_rt);
+   
+                hv.ScatterPlot.SizeData                    = 12;
+                hv.ScatterPlot.MarkerFaceColor      = FP_colors{k};
+                hv.ScatterPlot.MarkerFaceAlpha      = 0.5;
+                hv.ViolinPlot.FaceColor                     = [.8 .8 .8];
+                
+                boxplot(this_rt)
+
+                set(ha3(k), 'xlim', [.5 1.5], 'xtick', [], 'box', 'off', 'ylim', [0 1000], 'ytick', [0:200:1000]);
+                
+                title(sprintf('%2.0f|%2.0f', med_rt, iqr_rt))
+                             
+                if k ==1
+                    ylabel('Release time(msec)')
+                else
+                    set(ha3(k), 'ytick', [])
+                end
+                
+                xnow = xnow + plotsize1(1)+0.2;
+            end
+  
+            % Plot dark presses
+            ha1dark= axes;
+            set(ha1dark, 'parent', hf,'units', 'centimeters', 'position', [xnow ynow, plotsize1],...
+                'nextplot', 'add', 'ylim', [0 HoldTimeMax], 'xlim', [1 SessionMaxInSecs], 'yscale', 'linear',...
+               'ytick', [], 'fontsize', fontsize)
+            
+            % Dark presses
+            ind_dark_presses = strcmp(obj.Outcome, 'Dark');
+            n_dark = sum(ind_dark_presses);
+            scatter(ha1dark, obj.ReleaseTime(ind_dark_presses), ...
+                1000*(obj.ReleaseTime(ind_dark_presses) - obj.PressTime(ind_dark_presses)), ...
+                15, 'k', 'o', 'filled', 'linewidth', 1, 'SizeData', symbolSize);
+            line(ha1dark, [obj.PressTime(ind_dark_presses); obj.PressTime(ind_dark_presses)], [0 250], 'color', 'b')
+            title(sprintf('%s|%2.0d','dark', n_dark))
+            
+            ha2dark = axes;
+            set(ha2dark, 'parent', hf,'units', 'centimeters', 'position', [xnow ynow2, plotsize1],...
+                'nextplot', 'add', 'xlim', [0 HoldTimeMax], 'ylim', density_range, 'yscale', 'linear','ytick', [], 'fontsize', fontsize)
+            % plotting histogram
+            Press_Duration = obj.ReleaseTime(ind_dark_presses) - obj.PressTime(ind_dark_presses);
+            PressCounts = histcounts(Press_Duration, tbins, 'Normalization', 'pdf');
+            bar(tbin_centers, PressCounts, 'FaceColor', 'k', 'EdgeColor', 'none')
+            PDF_Press = ksdensity(Press_Duration, tbins, 'Bandwidth', bw);
+            plot(tbins*1000, PDF_Press, 'color', 'm')
+            
+            % reset xnow and start plotting performance
+            xnow = 2;
+            
+            % Plot performance score
+            % Define size of sliding window
+            
+            ha4 = axes;
+            set(ha4, 'parent', hf, 'units', 'centimeters', ...
+            'position', [xnow ynow4, plotsize0], 'nextplot', 'add', 'ylim', [0 100], 'xlim', [1 3600], 'yscale', 'linear', 'fontsize', fontsize)
+             xnow = xnow +plotsize0(1)+1.5;
+             
+            axes(ha4)
+            WinPos                  =          obj.PerformanceSlidingWindow.TimeInSession;
+            CorrectRatio          =         obj.PerformanceSlidingWindow.Correct;
+            PrematureRatio     =        obj.PerformanceSlidingWindow.Premature;
+            LateRatio               =          obj.PerformanceSlidingWindow.Late;
+
+            plot(WinPos, CorrectRatio, 'o', 'linestyle', '-', 'color', col_perf(1, :), ...
+                'markersize', 5, 'linewidth', 1, 'markerfacecolor', col_perf(1, :), 'markeredgecolor', 'w');
+            plot(WinPos, PrematureRatio, 'o', 'linestyle', '-', 'color', col_perf(2, :), ...
+                'markersize', 5, 'linewidth', 1, 'markerfacecolor', col_perf(2, :), 'markeredgecolor', 'w');
+            plot(WinPos, LateRatio, 'o', 'linestyle', '-', 'color', col_perf(3, :), ...
+                'markersize', 5, 'linewidth', 1, 'markerfacecolor', col_perf(3, :), 'markeredgecolor', 'w');
+            xlabel('Time in session (sec)')
+            ylabel('Performance')
+
+            %Plot response number, grouped by performance
+            ind_premature_presses = strcmp(obj.Outcome, 'Premature') & obj.Stage == 1;
+            ind_late_presses = strcmp(obj.Outcome, 'Late') & obj.Stage == 1;
+            ind_good_presses = strcmp(obj.Outcome, 'Correct') & obj.Stage == 1;
+            ind_dark_presses = strcmp(obj.Outcome, 'Dark') & obj.Stage == 1;
+
+            ha5 = axes; %
+            set(ha5,'parent', hf,'units', 'centimeters',...
+                'position', [xnow, ynow4, plotsize2], 'nextplot', 'add', 'ylim', [0 1000], 'xlim', [0 5], 'xtick', [], 'fontsize', fontsize)
+            
+            hb1=bar([1], (sum(ind_good_presses)));
+            set(hb1, 'EdgeColor', 'none', 'facecolor',col_perf(1, :), 'linewidth', 2);
+            hb2=bar([2], (sum(ind_premature_presses)));
+            set(hb2, 'EdgeColor',  'none', 'facecolor', col_perf(2, :), 'linewidth', 2);
+            hb2=bar([3], (sum(ind_late_presses)));
+            set(hb2, 'EdgeColor',  'none', 'facecolor',col_perf(3, :), 'linewidth', 2);
+            hb3=bar([4], (sum(ind_dark_presses)));
+            set(hb3, 'EdgeColor',  'none', 'facecolor', 'k', 'linewidth', 2);
+            axis 'auto y'
+            ylabel('Number')
+            
+            xnow =xnow +plotsize2(1)+1.5;
+            % Plot performance for different FPs
+            ha6 = axes;
+            set(ha6,'parent', hf,'units', 'centimeters', 'position', [xnow, ynow4, plotsize2], 'nextplot', 'add', 'ylim', [0 100], ...
+                'xlim', [-0.5 2+4*(length(obj.MixedFP)-1)+2], 'xtick', [2:4:2+4*(length(obj.MixedFP)-1)], 'xticklabel', num2cell(obj.MixedFP),...
+                'xticklabelrotation', 30, 'fontsize', fontsize);
+            if obj.PassedWarmedUp
+                for i =1:length(obj.MixedFP)
+                    bar(1+4*(i-1), obj.Performance.CorrectRatio(i), ...
+                        'Edgecolor', 'none','Facecolor', col_perf(1, :), 'linewidth', 1);
+                    bar(2+4*(i-1), obj.Performance.PrematureRatio(i), ...
+                        'Edgecolor', 'none', 'Facecolor', col_perf(2, :), 'linewidth', 1);
+                    bar(3+4*(i-1), obj.Performance.LateRatio(i), ...
+                        'Edgecolor', 'none','Facecolor', col_perf(3, :), 'linewidth', 1);
+                end;
+            end;
+            
+            title('Performance|FP', 'fontweight', 'normal')
+            ylabel('Performance (%)')
+    
+            end
+            
+            xnow = xnow+plotsize2(1)+1;
+
+            % Plot symbols and their meanings
+            hainfo=axes;
+            set(hainfo, 'parent', hf,'units', 'centimeters', 'position', [xnow ynow4 2 plotsize2(2)], ...
+                'xlim', [1.95 10], 'ylim', [0 9], 'nextplot', 'add');
+            axes(hainfo)
+            plot(hainfo, 2, 8, 'o', 'linewidth', 1, 'color', col_perf(1, :),'markerfacecolor', col_perf(1, :));
+            text(hainfo, 3, 8, 'Correct', 'fontsize', 8);
+            plot(hainfo, 2, 7, 'o', 'linewidth', 1, 'color', col_perf(2, :),'markerfacecolor', col_perf(2, :));
+            text(3, 7, 'Premature', 'fontsize', 8);
+            plot(2, 6 , 'o', 'linewidth', 1,'color', col_perf(3, :),'markerfacecolor', col_perf(3, :));
+            text(3, 6, 'Late', 'fontsize', 8);
+            plot(2, 5, 'ko', 'linewidth', 1,'markerfacecolor', 'k');
+            text(3, 5, 'Dark', 'fontsize', 8);
+            axis off
+          
+        end
+        
+        
         function Plot(obj)
             try
                 set_matlab_default
@@ -683,8 +1022,8 @@ classdef BehaviorClass
 
             FPColors = [45, 205, 223]/255;
 
-            figure(obj.Fig1); clf(obj.Fig1)
-            set(obj.Fig1, 'unit', 'centimeters', 'position',[2 2 18 15.5], 'paperpositionmode', 'auto', 'color', 'w')
+            hf = figure(obj.Fig1); clf(hf)
+            set(hf, 'unit', 'centimeters', 'position',[2 2 18 15.5], 'paperpositionmode', 'auto', 'color', 'w')
 
             plotsize1 = [6, 3.5];
             plotsize2 = [3, 3.5];
@@ -702,22 +1041,40 @@ classdef BehaviorClass
             SessionMaxInSecs = 3600;
 
             if isempty(obj.Treatment)
-                uicontrol('Style', 'text', 'parent',obj.Fig1, 'units', 'normalized', 'position', [0.25 0.95 0.5 0.04],...
-                    'string', [obj.Subject ' | ' obj.Session], 'fontweight', 'bold', 'backgroundcolor', [1 1 1], 'fontsize', 10);
+                % uicontrol('Style', 'text', 'parent',obj.Fig1, 'units', 'normalized', 'position', [0.25 0.95 0.5 0.04],...
+                %     'string', [obj.Subject ' | ' obj.Session], 'fontweight', 'bold', 'backgroundcolor', [1 1 1], 'fontsize', 10);
+                annotation(hf, 'textbox', ...
+                    'Units', 'normalized', ...
+                    'Position', [0.25 0.95 0.5 0.04], ...
+                    'String', [obj.Subject ' | ' obj.Session], ...
+                    'FontWeight', 'bold', ...
+                    'FontSize', 10, ...
+                    'BackgroundColor', [1 1 1], ...
+                    'HorizontalAlignment', 'center', ...
+                    'EdgeColor', 'none');
             else
-                uicontrol('Style', 'text', 'parent',obj.Fig1, 'units', 'normalized', 'position', [0.25 0.95 0.5 0.04],...
-                    'string', [obj.Subject ' | ' obj.Session ' | ' obj.Treatment], 'fontweight', 'bold', 'backgroundcolor', [1 1 1], 'fontsize', 10);
-            end;
+                % uicontrol('Style', 'text', 'parent',obj.Fig1, 'units', 'normalized', 'position', [0.25 0.95 0.5 0.04],...
+                %     'string', [obj.Subject ' | ' obj.Session ' | ' obj.Treatment], 'fontweight', 'bold', 'backgroundcolor', [1 1 1], 'fontsize', 10);
+                annotation(hf, 'textbox', ...
+                    'Units', 'normalized', ...
+                    'Position', [0.25 0.95 0.5 0.04], ...
+                    'String', [obj.Subject ' | ' obj.Session ' | ' obj.Treatment], ...
+                    'FontWeight', 'bold', ...
+                    'FontSize', 10, ...
+                    'BackgroundColor', [1 1 1], ...
+                    'HorizontalAlignment', 'center', ...
+                    'EdgeColor', 'none');
+            end
 
             ha1 = axes;
-            set(ha1, 'parent', obj.Fig1,'units', 'centimeters', 'position', [2 yloc_1strow, plotsize1], 'nextplot', 'add', 'ylim', [0 HoldTimeMax], 'xlim', [1 SessionMaxInSecs], 'yscale', 'linear')
+            set(ha1, 'parent', hf,'units', 'centimeters', 'position', [2 yloc_1strow, plotsize1], 'nextplot', 'add', 'ylim', [0 HoldTimeMax], 'xlim', [1 SessionMaxInSecs], 'yscale', 'linear')
             xlabel('Time in session (sec)')
             ylabel('Press duration (msec)')
 
             % draw FPs
             for k =1:length(obj.MixedFP)
                 line(ha1, [1 SessionMaxInSecs], [obj.MixedFP(k) obj.MixedFP(k)], 'linestyle', obj.FPLineStyles{k}, 'color', FPColors, 'linewidth', 1)
-            end;
+            end
 
             % plot press times
             line(ha1, [obj.PressTime; obj.PressTime], [0 250], 'color', 'b')
@@ -740,7 +1097,7 @@ classdef BehaviorClass
                 scatter(ha1, obj.ReleaseTime(ind_good_presses), ...
                     1000*(obj.ReleaseTime(ind_good_presses) - obj.PressTime(ind_good_presses)), ...
                     25, col_perf(1, :), 'o', 'Markerfacealpha', 0.8, 'linewidth', 1, 'SizeData', symbolSize);
-            end;
+            end
 
             % warm-up stage
             symbolSize = 5;
@@ -772,27 +1129,27 @@ classdef BehaviorClass
             % ha1) and x axis represents probability density
 
             if obj.PassedWarmedUp
-                ha1_pdf = axes('parent', obj.Fig1,'units', 'centimeters', 'position', [xloc_pdf yloc_1strow, plotsize3], 'nextplot', 'add', 'ylim', [0 2500], 'ytick', [], ...
+                ha1_pdf = axes('parent', hf,'units', 'centimeters', 'position', [xloc_pdf yloc_1strow, plotsize3], 'nextplot', 'add', 'ylim', [0 2500], 'ytick', [], ...
                     'xtick', [1:10],'xlim', [0 prctile(cell2mat(obj.PDF_HoldT), 99.9)*1.25], 'yscale', 'linear', 'xticklabelrotation', 0, 'FontSize', 7);
 
-                for k =1:length(obj.MixedFP);
+                for k =1:length(obj.MixedFP)
                     if ~isempty(obj.PDF_HoldT{k})
                         plot(ha1_pdf, obj.PDF_HoldT{k}, obj.HoldTbinEdges*1000, 'color', 'k', 'linewidth', 1,  'linestyle', obj.FPLineStyles{k});
-                    end;
-                end;
+                    end
+                end
                 xlabel('PDF(1/s)')
 
 
                 % draw FPs
                 for k =1:length(obj.MixedFP)
                     line(ha1_pdf, [0 prctile(cell2mat(obj.PDF_HoldT), 99.9)*1.25], [obj.MixedFP(k) obj.MixedFP(k)], 'linestyle', obj.FPLineStyles{k}, 'color', FPColors, 'linewidth', 1)
-                end;
+                end
 
             end
 
             % Plot symbols and their meanings
             hainfo=axes;
-            set(hainfo, 'parent', obj.Fig1,'units', 'centimeters', 'position', [xloc_secondcol+plotsize2(1)+0.25 yloc_bottomrow, 2 plotsize2(2)], ...
+            set(hainfo, 'parent', hf,'units', 'centimeters', 'position', [xloc_secondcol+plotsize2(1)+0.25 yloc_bottomrow, 2 plotsize2(2)], ...
                 'xlim', [1.95 10], 'ylim', [0 9], 'nextplot', 'add');
             axes(hainfo)
             plot(hainfo, 2, 8, 'o', 'linewidth', 1, 'color', col_perf(1, :),'markerfacecolor', col_perf(1, :));
@@ -808,7 +1165,7 @@ classdef BehaviorClass
             % Plot reaction time
             RTMax                        =      1000;
             ha2 = axes;
-            set(ha2,'parent', obj.Fig1,  'units', 'centimeters', 'position', [2 yloc_2ndrow, plotsize1], 'nextplot', 'add', 'ylim', [0 RTMax], 'xlim', [1 SessionMaxInSecs], 'yscale', 'linear');
+            set(ha2,'parent', hf,  'units', 'centimeters', 'position', [2 yloc_2ndrow, plotsize1], 'nextplot', 'add', 'ylim', [0 RTMax], 'xlim', [1 SessionMaxInSecs], 'yscale', 'linear');
             xlabel ('Time in session (s)')
             ylabel ('Reaction time (ms)')
             axes(ha2);
@@ -824,7 +1181,7 @@ classdef BehaviorClass
                 ind_good_presses = strcmp(obj.Outcome, 'Correct') & obj.FP == obj.MixedFP(k) & obj.Stage == 1;
                 scatter(obj.ToneTime(ind_good_presses), 1000*obj.ReactionTime(ind_good_presses), ...
                     25, col_perf(1, :), 'o', 'Markerfacealpha', 0.8, 'linewidth', 1, 'SizeData', symbolSize);
-            end;
+            end
 
             symbolSize = 5;
             ind_late_presses = strcmp(obj.Outcome, 'Late') &  obj.Stage == 0;
@@ -843,21 +1200,21 @@ classdef BehaviorClass
             % include late reponses
 
             if obj.PassedWarmedUp
-                ha2_pdf = axes('parent', obj.Fig1,'units', 'centimeters', 'position', [xloc_pdf yloc_2ndrow, plotsize3], 'nextplot', 'add', 'ylim', [0 RTMax], 'ytick', [], ...
+                ha2_pdf = axes('parent', hf,'units', 'centimeters', 'position', [xloc_pdf yloc_2ndrow, plotsize3], 'nextplot', 'add', 'ylim', [0 RTMax], 'ytick', [], ...
                     'xtick', [1:10],'xlim', [0 prctile(cell2mat(obj.PDF_RTLoose), 99.9)*1.25], 'yscale', 'linear', 'xticklabelrotation', 0, 'FontSize', 7);
                 axes(ha2_pdf)
-                for k =1:length(obj.MixedFP);
+                for k =1:length(obj.MixedFP)
                     if ~isempty(obj.PDF_RTLoose{k})
                         plot(obj.PDF_RTLoose{k}, obj.RTbinEdges*1000, 'color', 'k', 'linewidth', 1, 'linestyle', obj.FPLineStyles{k});
-                    end;
-                end;
+                    end
+                end
                 xlabel('PDF(1/s)')
             end
 
             % Plot performance score
             % Define size of sliding window
             ha3 = axes;
-            set(ha3, 'parent', obj.Fig1, 'units', 'centimeters', 'position', [2 yloc_bottomrow, plotsize1], 'nextplot', 'add', 'ylim', [0 100], 'xlim', [1 3600], 'yscale', 'linear', 'FontSize', 7)
+            set(ha3, 'parent', hf, 'units', 'centimeters', 'position', [2 yloc_bottomrow, plotsize1], 'nextplot', 'add', 'ylim', [0 100], 'xlim', [1 3600], 'yscale', 'linear', 'FontSize', 7)
             axes(ha3)
             WinPos                  =          obj.PerformanceSlidingWindow.TimeInSession;
             CorrectRatio          =         obj.PerformanceSlidingWindow.Correct;
@@ -880,7 +1237,7 @@ classdef BehaviorClass
             ind_dark_presses = strcmp(obj.Outcome, 'Dark') & obj.Stage == 1;
 
             ha3 = axes; %
-            set(ha3,'parent', obj.Fig1,'units', 'centimeters', 'position', [xloc_secondcol, yloc_bottomrow, plotsize2], 'nextplot', 'add', 'ylim', [0 1000], 'xlim', [0 5], 'xtick', [])
+            set(ha3,'parent', hf,'units', 'centimeters', 'position', [xloc_secondcol, yloc_bottomrow, plotsize2], 'nextplot', 'add', 'ylim', [0 1000], 'xlim', [0 5], 'xtick', [])
             hb1=bar([1], (sum(ind_good_presses)));
             set(hb1, 'EdgeColor', 'none', 'facecolor',col_perf(1, :), 'linewidth', 2);
             hb2=bar([2], (sum(ind_premature_presses)));
@@ -894,42 +1251,42 @@ classdef BehaviorClass
 
             % Plot PDF of hold duration, again
             if obj.PassedWarmedUp
-                axes('parent', obj.Fig1,'units', 'centimeters', 'position', [xloc_pdf+0.5 yloc_bottomrow plotsize4], 'nextplot', 'add', 'ylim', [0 prctile(cell2mat(obj.PDF_HoldT), 99.9)*1.25], 'ytick', [0:1:12], ...
+                axes('parent', hf,'units', 'centimeters', 'position', [xloc_pdf+0.5 yloc_bottomrow plotsize4], 'nextplot', 'add', 'ylim', [0 prctile(cell2mat(obj.PDF_HoldT), 99.9)*1.25], 'ytick', [0:1:12], ...
                     'xtick', [0:500:HoldTimeMax],'xlim', [0 HoldTimeMax], 'yscale', 'linear', 'xticklabelrotation', 30, 'FontSize', 7);
 
                 for k =1:length(obj.MixedFP)    % first, draw FPs
                     line([obj.MixedFP(k) obj.MixedFP(k)],  [0 prctile(cell2mat(obj.PDF_HoldT), 99.9)*1.25],'linestyle', obj.FPLineStyles{k}, 'color', FPColors, 'linewidth', 1)
-                end;
+                end
 
-                for k =1:length(obj.MixedFP);
+                for k =1:length(obj.MixedFP)
                     if ~isempty(obj.PDF_HoldT{k})
                         plot(obj.HoldTbinEdges*1000, obj.PDF_HoldT{k},  'color', 'k', 'linewidth', 1,  'linestyle', obj.FPLineStyles{k});
-                    end;
-                end;
+                    end
+                end
 
                 xlabel('Hold time (ms)')
                 ylabel('PDF(1/s)')
 
                 % Plot CDF of hold duration
-                axes('parent', obj.Fig1,'units', 'centimeters', 'position', [xloc_pdf+0.5 yloc_bottomrow+1.8, plotsize4], 'nextplot', 'add', 'ylim', [0 1], 'ytick', [0:0.2:1], ...
+                axes('parent', hf,'units', 'centimeters', 'position', [xloc_pdf+0.5 yloc_bottomrow+1.8, plotsize4], 'nextplot', 'add', 'ylim', [0 1], 'ytick', [0:0.2:1], ...
                     'xtick', [0:500:HoldTimeMax], 'xticklabel', [],'xlim', [0 HoldTimeMax], 'yscale', 'linear', 'xticklabelrotation', 0, 'FontSize', 7);
 
                 % Plot CDF of press duration for different FPs
                 % first, draw FPs
                 for k =1:length(obj.MixedFP)
                     line([obj.MixedFP(k) obj.MixedFP(k)],  [0 1],'linestyle', obj.FPLineStyles{k}, 'color', FPColors, 'linewidth', 1)
-                end;
+                end
 
-                for k =1:length(obj.MixedFP);
+                for k =1:length(obj.MixedFP)
                     if ~isempty(obj.CDF_HoldT{k})
                         plot(obj.HoldTbinEdges*1000, obj.CDF_HoldT{k}, 'color', 'k', 'linewidth', 1, 'linestyle', obj.FPLineStyles{k});
-                    end;
-                end;
+                    end
+                end
                 ylabel('CDF')
 
                 % Plot performance for different FPs
                 ha4 = axes;
-                set(ha4,'parent', obj.Fig1,'units', 'centimeters', 'position', [xloc_secondcol, yloc_2ndrow, plotsize2], 'nextplot', 'add', 'ylim', [0 100], ...
+                set(ha4,'parent', hf,'units', 'centimeters', 'position', [xloc_secondcol, yloc_2ndrow, plotsize2], 'nextplot', 'add', 'ylim', [0 100], ...
                     'xlim', [-0.5 2+4*(length(obj.MixedFP)-1)+2], 'xtick', [2:4:2+4*(length(obj.MixedFP)-1)], 'xticklabel', num2cell(obj.MixedFP),...
                     'xticklabelrotation', 30);
 
@@ -940,14 +1297,14 @@ classdef BehaviorClass
                         'Edgecolor', 'none', 'Facecolor', col_perf(2, :), 'linewidth', 1);
                     bar(3+4*(i-1), obj.Performance.LateRatio(i), ...
                         'Edgecolor', 'none','Facecolor', col_perf(3, :), 'linewidth', 1);
-                end;
+                end
 
                 title('Performance|FP', 'fontweight', 'normal')
                 ylabel('Performance (%)')
 
                 % plot reaction time
                 ha5 = axes;
-                set(ha5,'parent', obj.Fig1,'units', 'centimeters', 'position', [xloc_secondcol, yloc_1strow, plotsize2], 'nextplot', 'add', ...
+                set(ha5,'parent', hf,'units', 'centimeters', 'position', [xloc_secondcol, yloc_1strow, plotsize2], 'nextplot', 'add', ...
                     'ylim', [100 500], ...
                     'xlim', [obj.MixedFP(1)-100 obj.MixedFP(end)+100], 'xtick', obj.MixedFP, 'xticklabel', num2cell(obj.MixedFP),...
                     'xticklabelrotation', 0);
@@ -962,14 +1319,14 @@ classdef BehaviorClass
 
                 if max(obj.AvgRTLoose.RT_median_ksdensity)>500
                     set(ha5, 'ylim',[100 max(obj.AvgRTLoose.RT_median_ksdensity)+100]);
-                end;
+                end
 
                 legend('Loose', 'Strict','Location', 'best')
                 legend('boxoff')
                 xlabel('Foreperiod (ms)')
                 ylabel('Reaction time (ms)')
-            end;
+            end
 
-        end;
+        end
     end
 end

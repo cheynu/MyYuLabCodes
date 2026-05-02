@@ -1,0 +1,740 @@
+function hf = plot_topview_trial_features_spikes_and_prediction( ...
+    trial_info, result, trial_press_times, basis, basis_idx, varargin)
+%PLOT_TOPVIEW_TRIAL_FEATURES_SPIKES_AND_PREDICTION
+% One column per trial, with stacked panels:
+%   1) head position: x and y
+%   2) basis activation
+%   3) head direction: theta (deg) or theta/pi
+%   4) forward/lateral speed
+%   5) spike raster
+%   6) prediction: observed and predicted firing rate
+%
+% By default, plots both toLever and fromLever on the same axes, aligned
+% to press time.
+%
+% trial_info should come from build_topview_trial_bin_table and contain
+% phase substructs such as trial_info(k).toLever and/or trial_info(k).fromLever.
+%
+% result should come from fit_poisson_elasticnet_glm_by_trial.
+
+p = inputParser;
+p.addRequired('trial_info', @(x) isstruct(x) && ~isempty(x));
+p.addRequired('result', @(x) isstruct(x));
+p.addRequired('trial_press_times', @(x) isnumeric(x) || isstring(x) || iscell(x));
+p.addRequired('basis', @(x) isstruct(x) && isfield(x, 'centers'));
+p.addRequired('basis_idx', @(x) isnumeric(x) && isscalar(x) && x >= 1);
+
+p.addParameter('Phase', ["toLever","fromLever"], @(x) ischar(x) || isstring(x) || iscell(x));
+p.addParameter('UseThetaDeg', false, @(x) islogical(x) && isscalar(x));
+
+p.addParameter('ColWidth', 4, @(x) isnumeric(x) && isscalar(x) && x > 2);
+p.addParameter('ColWidthPerSec', 1, @(x) isnumeric(x) && isscalar(x) && x > 0.1);
+
+p.addParameter('PositionHeight', 2.8, @(x) isnumeric(x) && isscalar(x) && x > 0.5);
+p.addParameter('ActivationHeight', 1.1, @(x) isnumeric(x) && isscalar(x) && x > 0.2);
+p.addParameter('ThetaHeight', 1.8, @(x) isnumeric(x) && isscalar(x) && x > 0.2);
+p.addParameter('SpeedHeight', 2.0, @(x) isnumeric(x) && isscalar(x) && x > 0.2);
+p.addParameter('SpikeHeight', 0.9, @(x) isnumeric(x) && isscalar(x) && x > 0.2);
+p.addParameter('PredictionHeight', 1.3, @(x) isnumeric(x) && isscalar(x) && x > 0.2);
+p.addParameter('ThetaCompHeight', 1.8, @(x) isnumeric(x) && isscalar(x) && x > 0.2);
+
+p.addParameter('FigureNumber', [], @(x) isempty(x) || (isnumeric(x) && isscalar(x)));
+p.addParameter('FontName', 'Helvetica', @(x) ischar(x) || isstring(x));
+p.addParameter('FontSize', 7, @(x) isnumeric(x) && isscalar(x) && x > 0);
+p.addParameter('LineWidth', 0.8, @(x) isnumeric(x) && isscalar(x) && x > 0);
+p.addParameter('UseValidOnly', true, @(x) islogical(x) && isscalar(x));
+p.addParameter('HorizontalGap', 0.8, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+p.addParameter('VerticalGap', 0.15, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+p.addParameter('TopMargin', 0.9, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+p.addParameter('BottomMargin', 0.6, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+p.addParameter('LeftMargin', 0.7, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+p.addParameter('RightMargin', 0.6, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+p.addParameter('FigureName', 'Top-view trial features, spikes, and prediction', @(x) ischar(x) || isstring(x));
+
+p.addParameter('PositionOffsets', [0.8 -0.8], @(x) isnumeric(x) && numel(x)==2);
+p.addParameter('SpeedOffsets', [8 -8], @(x) isnumeric(x) && numel(x)==2);
+p.addParameter('ThetaCompOffsets', [0.6 -0.6], @(x) isnumeric(x) && numel(x)==2);
+p.addParameter('ThetaCompLims', [], @(x) isempty(x) || (isnumeric(x) && numel(x)==2));
+
+p.addParameter('PositionLims', [], @(x) isempty(x) || (isnumeric(x) && numel(x)==2));
+p.addParameter('ThetaLims', [], @(x) isempty(x) || (isnumeric(x) && numel(x)==2));
+p.addParameter('SpeedLims', [], @(x) isempty(x) || (isnumeric(x) && numel(x)==2));
+p.addParameter('ActivationLims', [], @(x) isempty(x) || (isnumeric(x) && numel(x)==2));
+p.addParameter('PredictionLims', [], @(x) isempty(x) || (isnumeric(x) && numel(x)==2));
+
+p.addParameter('SaveFigure', false, @(x) islogical(x) && isscalar(x));
+p.addParameter('FigureTag', '', @(x) ischar(x) || isstring(x));
+p.addParameter('MarkTime', [], @(x) isempty(x) || isnumeric(x));
+p.addParameter('PositionMode', 'basis', @(x) any(strcmpi(string(x), ["basis","bin"])));
+
+p.parse(trial_info, result, trial_press_times, basis, basis_idx, varargin{:});
+
+phases = local_normalize_phases(p.Results.Phase);
+phase_label = strjoin(cellstr(phases), '+');
+use_theta_deg = p.Results.UseThetaDeg;
+
+col_width   = p.Results.ColWidth;
+col_width_s = p.Results.ColWidthPerSec;
+pos_h       = p.Results.PositionHeight;
+act_h       = p.Results.ActivationHeight;
+theta_h     = p.Results.ThetaHeight;
+speed_h     = p.Results.SpeedHeight;
+spike_h     = p.Results.SpikeHeight;
+pred_h      = p.Results.PredictionHeight;
+position_mode = lower(string(p.Results.PositionMode));
+fig_num     = p.Results.FigureNumber;
+font_name   = char(string(p.Results.FontName));
+font_size   = p.Results.FontSize;
+lw          = p.Results.LineWidth;
+use_valid   = p.Results.UseValidOnly;
+hgap        = p.Results.HorizontalGap;
+vgap        = p.Results.VerticalGap;
+top_m       = p.Results.TopMargin;
+bot_m       = p.Results.BottomMargin;
+left_m      = p.Results.LeftMargin;
+right_m     = p.Results.RightMargin;
+
+pos_offsets   = p.Results.PositionOffsets;
+speed_offsets = p.Results.SpeedOffsets;
+
+pos_ylim    = p.Results.PositionLims;
+theta_ylim  = p.Results.ThetaLims;
+speed_ylim  = p.Results.SpeedLims;
+act_ylim    = p.Results.ActivationLims;
+pred_ylim   = p.Results.PredictionLims;
+
+save_figure = p.Results.SaveFigure;
+fig_tag     = char(string(p.Results.FigureTag));
+mark_time   = p.Results.MarkTime;
+
+theta_comp_h = p.Results.ThetaCompHeight;
+theta_comp_offsets = p.Results.ThetaCompOffsets;
+theta_comp_ylim = p.Results.ThetaCompLims;
+
+trial_press_times = string(trial_press_times(:));
+unit_id = string(local_getfield_safe(result, 'unit_id', "unit"));
+
+all_press = arrayfun(@(s) string(s.press_time), trial_info);
+idx = zeros(numel(trial_press_times),1);
+for i = 1:numel(trial_press_times)
+    k = find(all_press == trial_press_times(i), 1, 'first');
+    if isempty(k)
+        error('Could not find trial with press_time = %s', trial_press_times(i));
+    end
+    idx(i) = k;
+end
+
+ncol = numel(idx);
+fig_width = left_m + right_m + ncol*col_width + (ncol-1)*hgap + 2.2;
+fig_height = top_m + bot_m + ...
+    pos_h + vgap + ...
+    act_h + vgap + ...
+    theta_h + vgap + ...
+    theta_comp_h + vgap + ...
+    speed_h + vgap + ...
+    spike_h + vgap + ...
+    pred_h + 0.5;
+
+if isempty(fig_num)
+    hf = figure('Color','w', 'Units','centimeters', ...
+        'Position',[2 2 fig_width fig_height], 'Visible','on');
+else
+    hf = figure(fig_num); clf(hf);
+    set(hf, 'Color','w', 'Units','centimeters', ...
+        'Position',[2 2 fig_width fig_height], 'Visible','on');
+end
+
+annotation(hf, 'textbox', ...
+    'Units', 'centimeters', ...
+    'Position', [.1, fig_height-top_m, fig_width-left_m-right_m, 0.65], ...
+    'String', sprintf('%s | %s', unit_id, phase_label), ...
+    'EdgeColor', 'none', ...
+    'HorizontalAlignment', 'center', ...
+    'VerticalAlignment', 'bottom', ...
+    'FontWeight', 'bold', ...
+    'FontName', font_name, ...
+    'FontSize', font_size+1, ...
+    'Interpreter', 'none');
+
+c_to   = [91 98 96] / 255;
+c_from = [91 98 96] / 255;
+c_obs  = [0 0 0];
+c_pred = [0.85 0 0];
+
+ls_to = '-';
+ls_from = ':';
+
+ls_to_from = {'-', ':'};
+for ic = 1:ncol
+    tr = trial_info(idx(ic));
+    phase_list = local_get_requested_phases_for_trial(tr, phases);
+
+    if isempty(phase_list)
+        error('Trial %s has none of the requested phases.', string(tr.trial));
+    end
+
+    Rp = local_find_trial_prediction(result, tr.trial);
+    xlim_this = local_get_trial_phase_xlim(tr, phase_list);
+    plot_width = diff(xlim_this) * col_width_s;
+    x0 = left_m + (ic-1)*(col_width + hgap);
+
+    y_pred   = bot_m;
+    y_spk    = y_pred   + pred_h       + vgap;
+    y_speed  = y_spk    + spike_h      + vgap;
+    y_tcomp  = y_speed  + speed_h      + vgap;
+    y_theta  = y_tcomp  + theta_comp_h + vgap;
+    y_act    = y_theta  + theta_h      + vgap;
+    y_pos    = y_act    + act_h        + vgap;
+
+    % -------- position panel --------
+    ax1 = axes('Parent', hf, 'Units','centimeters', ...
+        'Position', [x0 y_pos col_width pos_h], ...
+        'FontName', font_name, 'FontSize', font_size, ...
+        'LineWidth', 0.5, 'Box', 'off');
+    hold(ax1, 'on');
+
+    for ip = 1:numel(phase_list)
+        P = phase_list(ip).P;
+        c_phase = local_get_phase_color(phase_list(ip).name, c_to, c_from);
+        idx_use = local_get_topview_indices(P, use_valid);
+
+        local_plot_top_feature(ax1, tr, P, 'head_x_rel_cm', c_phase, lw, pos_offsets(1), idx_use, false, ls_to_from{ip});
+        local_plot_top_feature(ax1, tr, P, 'head_y_rel_cm', c_phase, lw*2, pos_offsets(2), idx_use, false, ls_to_from{ip});
+    end
+
+    xlim(ax1, xlim_this);
+    ax1.Position(3) = plot_width;
+    if ic == 1
+        ylabel(ax1, 'head pos', 'FontName', font_name, 'FontSize', font_size);
+    end
+    if ic > 1
+        ax1.YTick = [];
+    end
+    if ~isempty(pos_ylim)
+        ax1.YLim = pos_ylim;
+    end
+    set(ax1, 'XTickLabel', []);
+    grid(ax1, 'off');
+
+    num = regexp(string(tr.trial), '\d+$', 'match', 'once');
+    title(ax1, sprintf('%s | %s', num, Rp.set_name), ...
+        'Interpreter', 'none', 'FontName', font_name, 'FontSize', font_size);
+
+    % -------- basis activation --------
+    ax_act = axes('Parent', hf, 'Units','centimeters', ...
+        'Position', [x0 y_act col_width act_h], ...
+        'FontName', font_name, 'FontSize', font_size, ...
+        'LineWidth', 0.5, 'Box', 'off');
+    hold(ax_act, 'on');
+
+
+    for ip = 1:numel(phase_list)
+        P = phase_list(ip).P;
+        c_phase = local_get_phase_color(phase_list(ip).name, c_to, c_from);
+        idx_use = local_get_topview_indices(P, use_valid);
+        A = compute_topview_basis_activation(tr, P, basis, basis_idx);
+
+        plot(ax_act, A.t_rel_s(idx_use), A.activation(idx_use), '-', ...
+            'Color', c_phase, 'LineWidth', lw*1.2);
+    end
+
+        xlim(ax_act, xlim_this);
+        ax_act.Position(3) = plot_width;
+        if ic == 1
+            ylabel(ax_act, 'basis', 'FontName', font_name, 'FontSize', font_size);
+        end
+        if ic > 1
+            ax_act.YTick = [];
+        end
+        if ~isempty(act_ylim)
+            ax_act.YLim = act_ylim;
+        else
+            ylim(ax_act, [-0.02 1.02]);
+        end
+        set(ax_act, 'XTickLabel', []);
+        grid(ax_act, 'off');
+    
+
+        % -------- theta panel --------
+        ax_theta = axes('Parent', hf, 'Units','centimeters', ...
+        'Position', [x0 y_theta col_width theta_h], ...
+        'FontName', font_name, 'FontSize', font_size, ...
+        'LineWidth', 0.5, 'Box', 'off');
+    hold(ax_theta, 'on');
+
+    for ip = 1:numel(phase_list)
+        P = phase_list(ip).P;
+        c_phase = local_get_phase_color(phase_list(ip).name, c_to, c_from);
+        idx_use = local_get_topview_indices(P, use_valid);
+
+        if use_theta_deg
+            local_plot_top_feature(ax_theta, tr, P, 'head_theta_deg', c_phase, lw, 0, idx_use, false, '.');
+        else
+            local_plot_top_feature_pi_dots(ax_theta, tr, P, 'head_theta', c_phase, 4, idx_use);
+        end
+    end
+
+    xlim(ax_theta, xlim_this);
+    ax_theta.Position(3) = plot_width;
+
+    if ic == 1
+        ylabel(ax_theta, ternary(use_theta_deg, '\theta (deg)', '\theta / \pi'), ...
+            'FontName', font_name, 'FontSize', font_size, ...
+            'Interpreter', 'tex');
+    end
+
+    if ic > 1
+        ax_theta.YTick = [];
+    else
+        if ~use_theta_deg
+            yticks(ax_theta, [-1 -0.5 0 0.5 1]);
+            yticklabels(ax_theta, {'-\pi','-\pi/2','0','\pi/2','\pi'});
+        end
+    end
+
+    if ~isempty(theta_ylim)
+        ax_theta.YLim = theta_ylim;
+    elseif ~use_theta_deg
+        ylim(ax_theta, [-1.05 1.05]);
+    end
+
+    set(ax_theta, 'XTickLabel', []);
+    grid(ax_theta, 'off');
+
+    % -------- theta cos/sin panel --------
+    ax_tcomp = axes('Parent', hf, 'Units','centimeters', ...
+        'Position', [x0 y_tcomp col_width theta_comp_h], ...
+        'FontName', font_name, 'FontSize', font_size, ...
+        'LineWidth', 0.5, 'Box', 'off');
+    hold(ax_tcomp, 'on');
+
+    for ip = 1:numel(phase_list)
+        P = phase_list(ip).P;
+        c_phase = local_get_phase_color(phase_list(ip).name, c_to, c_from);
+        idx_use = local_get_topview_indices(P, use_valid);
+
+        local_plot_top_feature(ax_tcomp, tr, P, 'head_theta_cos', ...
+            c_phase, lw, theta_comp_offsets(1), idx_use, false, ls_to_from{ip});
+
+        local_plot_top_feature(ax_tcomp, tr, P, 'head_theta_sin', ...
+            c_phase, lw*2, theta_comp_offsets(2), idx_use, false, ls_to_from{ip});
+    end
+
+    xlim(ax_tcomp, xlim_this);
+    ax_tcomp.Position(3) = plot_width;
+
+    if ic == 1
+        ylabel(ax_tcomp, 'cos/sin', 'FontName', font_name, 'FontSize', font_size);
+    end
+
+    if ic > 1
+        ax_tcomp.YTick = [];
+    end
+
+    if ~isempty(theta_comp_ylim)
+        ax_tcomp.YLim = theta_comp_ylim;
+    end
+
+    set(ax_tcomp, 'XTickLabel', []);
+    grid(ax_tcomp, 'off');
+
+    % -------- speed panel --------
+    ax_speed = axes('Parent', hf, 'Units','centimeters', ...
+        'Position', [x0 y_speed col_width speed_h], ...
+        'FontName', font_name, 'FontSize', font_size, ...
+        'LineWidth', 0.5, 'Box', 'off');
+    hold(ax_speed, 'on');
+
+    for ip = 1:numel(phase_list)
+        P = phase_list(ip).P;
+        c_phase = local_get_phase_color(phase_list(ip).name, c_to, c_from);
+        idx_use = local_get_topview_indices(P, use_valid);
+
+        local_plot_top_feature(ax_speed, tr, P, 'forward_speed_cm_s', c_phase, lw, speed_offsets(1), idx_use, true, ls_to_from{ip});
+        local_plot_top_feature(ax_speed, tr, P, 'lateral_speed_cm_s', c_phase, lw*2, speed_offsets(2), idx_use, true, ls_to_from{ip});
+    end
+
+    xlim(ax_speed, xlim_this);
+    ax_speed.Position(3) = plot_width;
+    if ic == 1
+        ylabel(ax_speed, 'speed', 'FontName', font_name, 'FontSize', font_size);
+    end
+    if ic > 1
+        ax_speed.YTick = [];
+    end
+    if ~isempty(speed_ylim)
+        ax_speed.YLim = speed_ylim;
+    end
+    set(ax_speed, 'XTickLabel', []);
+    grid(ax_speed, 'off');
+
+    % -------- spike raster --------
+    ax3 = axes('Parent', hf, 'Units','centimeters', ...
+        'Position', [x0 y_spk col_width spike_h], ...
+        'FontName', font_name, 'FontSize', font_size, ...
+        'LineWidth', 0.5, 'Box', 'off');
+    hold(ax3, 'on');
+
+    [~, is_in_phase_spike] = local_get_phase_window_masks( ...
+        phase_list, Rp.time_bin_start, Rp.time_bin_end, Rp.spike_times_ms);
+
+    spk_rel_s = Rp.spike_times_rel_s(is_in_phase_spike);
+
+    for s = 1:numel(spk_rel_s)
+        line(ax3, [spk_rel_s(s) spk_rel_s(s)], [0 1], ...
+            'Color', 'k', 'LineWidth', 0.5);
+    end
+
+    xlim(ax3, xlim_this);
+    ax3.Position(3) = plot_width;
+    ylim(ax3, [0 1]);
+    yticks(ax3, []);
+    if ic == 1
+        ylabel(ax3, 'spk', 'FontName', font_name, 'FontSize', font_size);
+    end
+    set(ax3, 'XTickLabel', []);
+    grid(ax3, 'off');
+
+    % -------- prediction --------
+    ax4 = axes('Parent', hf, 'Units','centimeters', ...
+        'Position', [x0 y_pred col_width pred_h], ...
+        'FontName', font_name, 'FontSize', font_size, ...
+        'LineWidth', 0.5, 'Box', 'off');
+    hold(ax4, 'on');
+
+    [is_in_phase_bin, ~] = local_get_phase_window_masks( ...
+        phase_list, Rp.time_bin_start, Rp.time_bin_end, Rp.spike_times_ms);
+
+    t_pred_all = (Rp.time_bin_center - Rp.press_time) / 1000;
+    y_pred_all = Rp.y_rate_hz;
+    mu_pred_all = Rp.mu_rate_hz;
+
+    for ip = 1:numel(phase_list)
+        P = phase_list(ip).P;
+        t_start = (P.t_start - Rp.press_time) / 1000;
+        t_end   = (P.t_end   - Rp.press_time) / 1000;
+
+        m = is_in_phase_bin & t_pred_all >= t_start & t_pred_all <= t_end;
+        if ~any(m)
+            continue
+        end
+
+        bar(ax4, t_pred_all(m), y_pred_all(m), .9, ...
+            'FaceColor', c_obs, 'EdgeColor', 'none', 'LineWidth', lw);
+
+        plot(ax4, t_pred_all(m), mu_pred_all(m), '-', ...
+            'Color', c_pred, 'LineWidth', lw);
+    end
+    xlim(ax4, xlim_this);
+    ax4.Position(3) = plot_width;
+    if ic == 1
+        ylabel(ax4, 'rate', 'FontName', font_name, 'FontSize', font_size);
+    end
+    xlabel(ax4, 'time from press (s)', 'FontName', font_name, 'FontSize', font_size);
+    if ~isempty(pred_ylim)
+        ax4.YLim = pred_ylim;
+    end
+    grid(ax4, 'off');
+
+    if ~isempty(mark_time)
+        ax_all = [ax1 ax_act ax_theta ax_tcomp ax_speed ax3 ax4];
+        for ia = 1:numel(ax_all)
+            for ii = 1:numel(mark_time)
+                xline(ax_all(ia), (mark_time(ii)-tr.press_time)/1000, 'color', 'b');
+            end
+        end
+    end
+end
+
+% legend/info column
+x0 = left_m + ncol*(col_width + hgap);
+ax_label = axes('Parent', hf, 'Units','centimeters', ...
+    'Position', [x0 y_tcomp 2.2 6.6], ...
+    'FontName', font_name, 'FontSize', font_size, ...
+    'LineWidth', 0.5, 'Box', 'off');
+hold(ax_label, 'on');
+
+
+yy = 1; dy = 0.85;
+
+local_line_label(ax_label, yy, c_to, lw, 'toLever'); yy = yy + dy;
+local_line_label(ax_label, yy, c_from, lw, 'fromLever'); yy = yy + dy;
+local_line_label(ax_label, yy, [0 0 0], lw, 'solid: x/fwd/cos'); yy = yy + dy;
+local_line_label(ax_label, yy, [0 0 0], lw, 'dashed: y/lat/sin'); yy = yy + dy;
+local_line_label(ax_label, yy, [0 0 0], lw*1.2, sprintf('basis %d', basis_idx)); yy = yy + dy;
+local_line_label(ax_label, yy, [0.3 0.3 0.3], lw, ternary(use_theta_deg, 'theta', 'theta/pi')); yy = yy + dy;
+local_line_label(ax_label, yy, c_obs, lw, 'observed rate'); yy = yy + dy;
+local_line_label(ax_label, yy, c_pred, lw, 'predicted rate');
+ax_label.XLim = [0 2];
+ax_label.YLim = [0 yy + 1];
+ax_label.YDir = 'reverse';
+axis(ax_label, 'off');
+
+adjust_figure_size(hf, 1.5);
+
+if save_figure
+    adjust_figure_size(hf, 1);
+
+    press_tag = strjoin(string(trial_press_times), "_");
+    press_tag = regexprep(press_tag, '[^\w-]+', '_');
+
+    if ~isempty(fig_tag)
+        figName = sprintf('topview_trial_features_spikes_prediction_%s_%s_%s_%s', ...
+            local_safe_str(unit_id), local_safe_str(phase_label), press_tag, local_safe_str(fig_tag));
+    else
+        figName = sprintf('topview_trial_features_spikes_prediction_%s_%s_%s', ...
+            local_safe_str(unit_id), local_safe_str(phase_label), press_tag);
+    end
+
+    outFolder = fullfile(pwd, 'figure', 'glm_prediction');
+    if ~exist(outFolder, 'dir')
+        mkdir(outFolder);
+    end
+
+    save_fig(hf, figName, outFolder, 'Formats', {"png","pdf"});
+
+    write_meta( ...
+        figName, ...
+        'MetaFolder', outFolder, ...
+        'Description', 'Example top-view trials showing both phases, head features, basis activation, spike raster, and prediction', ...
+        'Purpose', 'To illustrate trial-level top-view kinematics, spikes, and GLM prediction', ...
+        'GeneratorFunction', 'Kin.plot_topview_trial_features_spikes_and_prediction', ...
+        'GeneratorScript', '', ...
+        'Inputs', { ...
+            sprintf('unit_id: %s', string(unit_id)), ...
+            sprintf('phase: %s', string(phase_label)), ...
+            sprintf('trial_press_times: %s', strjoin(string(trial_press_times), ', ')), ...
+            sprintf('basis_idx: %d', basis_idx) ...
+        });
+end
+
+end
+
+function phases = local_normalize_phases(phase_in)
+phases = string(phase_in);
+phases = phases(:)';
+
+if any(strcmpi(phases, "all")) || any(strcmpi(phases, "both"))
+    phases = ["toLever","fromLever"];
+end
+
+phases = unique(phases, 'stable');
+end
+
+function phase_list = local_get_requested_phases_for_trial(tr, phases)
+phase_list = struct('name', {}, 'field', {}, 'P', {});
+
+for i = 1:numel(phases)
+    phase_field = matlab.lang.makeValidName(char(phases(i)));
+    if isfield(tr, phase_field) && ~isempty(tr.(phase_field))
+        S.name = string(phases(i));
+        S.field = phase_field;
+        S.P = tr.(phase_field);
+        phase_list(end+1) = S; %#ok<AGROW>
+    end
+end
+end
+
+function xlim_this = local_get_trial_phase_xlim(tr, phase_list)
+t_start_all = nan(numel(phase_list),1);
+t_end_all = nan(numel(phase_list),1);
+
+for i = 1:numel(phase_list)
+    P = phase_list(i).P;
+    t_start_all(i) = P.t_start;
+    t_end_all(i) = P.t_end;
+end
+
+xlim_this = [min(t_start_all) - tr.press_time, max(t_end_all) - tr.press_time] / 1000;
+end
+
+function c = local_get_phase_color(phase_name, c_to, c_from)
+switch string(phase_name)
+    case "toLever"
+        c = c_to;
+    case "fromLever"
+        c = c_from;
+    otherwise
+        c = [0.5 0.5 0.5];
+end
+end
+
+function Rp = local_find_trial_prediction(result, trial_name)
+Rp = struct();
+Rp.trial = string(trial_name);
+Rp.set_name = "unknown";
+Rp.press_time = NaN;
+Rp.time_bin_start = [];
+Rp.time_bin_end = [];
+Rp.time_bin_center = [];
+Rp.y = [];
+Rp.mu = [];
+Rp.y_rate_hz = [];
+Rp.mu_rate_hz = [];
+Rp.spike_times_rel_s = [];
+
+if isfield(result, 'train_trials')
+    idx = find(string({result.train_trials.trial}) == string(trial_name), 1);
+    if ~isempty(idx)
+        Rp = result.train_trials(idx);
+        Rp.set_name = "train";
+        return
+    end
+end
+
+if isfield(result, 'test_trials')
+    idx = find(string({result.test_trials.trial}) == string(trial_name), 1);
+    if ~isempty(idx)
+        Rp = result.test_trials(idx);
+        Rp.set_name = "test";
+        return
+    end
+end
+
+error('Trial %s not found in result.train_trials or result.test_trials.', string(trial_name));
+end
+
+function local_plot_top_feature(ax, tr, P, feat_name, color_this, lw, y_offset, idx_use, add_zero_line, line_style)
+if nargin < 10 || isempty(line_style)
+    line_style = '-';
+end
+if nargin < 9
+    add_zero_line = false;
+end
+
+if ~isfield(P, feat_name) || ~isfield(P, 'time')
+    return
+end
+
+if isempty(idx_use)
+    idx_use = (1:numel(P.time))';
+end
+
+t_abs = P.time(idx_use);
+t_rel_s = (t_abs - tr.press_time) / 1000;
+
+yy = P.(feat_name)(idx_use) + y_offset;
+plot(ax, t_rel_s, yy, line_style, 'Color', color_this, 'LineWidth', lw);
+
+if add_zero_line
+    yline(ax, y_offset, '-.', 'Color', 'k', 'LineWidth', .5);
+end
+end
+
+function act = compute_topview_basis_activation(trial_info_entry, phase_struct, basis, basis_idx)
+if basis_idx < 1 || basis_idx > basis.K
+    error('basis_idx out of range.');
+end
+
+x = phase_struct.head_x_rel_cm(:);
+y = phase_struct.head_y_rel_cm(:);
+time_ms = phase_struct.time(:);
+
+if isfield(phase_struct, 'valid')
+    valid = logical(phase_struct.valid(:));
+else
+    valid = true(size(x));
+end
+
+cx = basis.centers(basis_idx, 1);
+cy = basis.centers(basis_idx, 2);
+
+activation = nan(size(x));
+good = valid & isfinite(x) & isfinite(y);
+activation(good) = exp( ...
+    -0.5 * ((x(good) - cx) ./ basis.sigma_x).^2 ...
+    -0.5 * ((y(good) - cy) ./ basis.sigma_y).^2 );
+
+act = struct();
+act.trial = trial_info_entry.trial;
+act.press_time = trial_info_entry.press_time;
+act.basis_idx = basis_idx;
+act.center_x = cx;
+act.center_y = cy;
+act.time_ms = time_ms;
+act.t_rel_ms = time_ms - trial_info_entry.press_time;
+act.t_rel_s = act.t_rel_ms / 1000;
+act.valid = valid;
+act.activation = activation;
+end
+
+function idx_use = local_get_topview_indices(P, use_valid)
+idx_use = (1:numel(P.time))';
+if use_valid && isfield(P, 'valid') && ~isempty(P.valid)
+    idx_use = idx_use(logical(P.valid(:)));
+end
+end
+
+function local_line_label(ax, yy, cc, lw, txt)
+line(ax, [0 .1], [yy yy], 'Color', cc, 'LineWidth', lw);
+text(ax, 0.15, yy, txt, 'VerticalAlignment', 'middle', 'Interpreter', 'none');
+end
+
+function out = local_safe_str(x)
+x = string(x);
+x = regexprep(x, '[^\w-]+', '_');
+out = char(x);
+end
+
+function out = local_getfield_safe(S, fname, default_val)
+if isfield(S, fname)
+    out = S.(fname);
+else
+    out = default_val;
+end
+end
+
+function out = ternary(cond, a, b)
+if cond
+    out = a;
+else
+    out = b;
+end
+end
+
+function local_plot_top_feature_pi_dots(ax, tr, P, feat_name, color_this, marker_size, idx_use)
+if ~isfield(P, feat_name) || ~isfield(P, 'time')
+    return
+end
+
+if isempty(idx_use)
+    idx_use = (1:numel(P.time))';
+end
+
+t_abs = P.time(idx_use);
+t_rel_s = (t_abs - tr.press_time) / 1000;
+
+yy = P.(feat_name)(idx_use) / pi;
+
+plot(ax, t_rel_s, yy, '.', ...
+    'Color', color_this, ...
+    'MarkerSize', marker_size);
+end
+
+function [is_in_phase_bin, is_in_phase_spike] = local_get_phase_window_masks( ...
+    phase_list, time_bin_start, time_bin_end, spike_times_ms)
+
+time_bin_start = time_bin_start(:);
+time_bin_end   = time_bin_end(:);
+spike_times_ms = spike_times_ms(:);
+
+n_bin = numel(time_bin_start);
+n_spk = numel(spike_times_ms);
+
+is_in_phase_bin = false(n_bin, 1);
+is_in_phase_spike = false(n_spk, 1);
+
+t_center = (time_bin_start + time_bin_end) / 2;
+
+for ip = 1:numel(phase_list)
+    P = phase_list(ip).P;
+    t_start = P.t_start;
+    t_end   = P.t_end;
+
+    is_in_phase_bin = is_in_phase_bin | ...
+        (t_center >= t_start & t_center <= t_end);
+
+    is_in_phase_spike = is_in_phase_spike | ...
+        (spike_times_ms >= t_start & spike_times_ms <= t_end);
+end
+end

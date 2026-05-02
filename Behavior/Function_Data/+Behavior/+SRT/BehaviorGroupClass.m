@@ -505,10 +505,6 @@ classdef BehaviorGroupClass
             text(ha1s, 2.85-0.5, maxPDF*0.9, 'Chemo', 'fontname', 'dejavu sans','fontsize',  7);
             % Plot data in a violin plot to show all data points
 
-
-
-
-
             % Plot data in a violin plot to show all data points
 
             HoldTimeMax = 3;

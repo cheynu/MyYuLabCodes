@@ -1,0 +1,32 @@
+function TableOut = appendSheets(FileName, SheetName)
+% Yu Chen, 2023.4.19, when there's no SheetName input, read all sheets
+% hbWang, Jan 2023
+% This function read SheetNames from FileName (.xls file) and append sheets as one table
+% FileName - *.xls
+%   - Sheets: trainging log of each subject (sheetnames = subject names)
+
+% SheetName - cell, all contents should be found in .xls sheetnames 
+
+arguments
+    FileName
+    SheetName = {}
+end
+
+if isempty(SheetName)
+    SheetName = sheetnames(FileName);
+end
+
+for i = 1:length(SheetName)
+    itable = readtable(FileName, 'Sheet', SheetName{i});
+    
+    Subjects = itable.Subject;
+    Subjects = cellstr(string(Subjects));
+    itable.Subject = Subjects;
+
+    if i == 1
+        TableOut = itable;
+    else
+        TableOut = union(TableOut, itable);
+    end
+end
+end

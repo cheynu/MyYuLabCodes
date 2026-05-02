@@ -1,0 +1,68 @@
+function B = build_trial_bin_table(T, ops)
+
+% Jianing Yu 3/12/2026
+% T is the table from an app track_side_kinematics
+% from T, we first extract trials and press time
+
+% Output:
+% one row per trial-bin
+% columns like:
+% trial
+% time_bin_start
+% time_bin_center
+% t_rel_s
+% t_rel_s2
+% LeftEar_x_rel, ...
+% valid_LeftEar, valid_LeftPaw, valid_RightPaw
+% valid_all_parts
+
+%-----------------------------
+% basic cleanup
+%-----------------------------
+T = T(strcmp(string(T.lever_phase), ops.phase), :);
+T = T(ismember(string(T.body_part), ops.body_parts), :);
+
+T.trial      = string(T.trial);
+T.body_part  = string(T.body_part);
+T.anm_session = string(T.anm_session);
+
+%-----------------------------
+% extract press time from trial name
+% example: "Side_Press_229539" -> 229539
+%-----------------------------
+tok = regexp(T.trial, "Side_Press_(\d+)", "tokens", "once");
+press_time = nan(height(T),1);
+
+for i = 1:height(T)
+    if ~isempty(tok{i})
+        press_time(i) = str2double(tok{i}{1});
+    end
+end
+
+T.press_time = press_time;
+
+%-----------------------------
+% unique trials
+%-----------------------------
+trials = unique(T.trial, "stable");
+nTrials = numel(trials);
+
+fprintf('Found %d trials in phase %s.\n', nTrials, ops.phase);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+B = table;
+
+
+end

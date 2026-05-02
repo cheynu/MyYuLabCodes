@@ -75,7 +75,7 @@ ha1 = subplot(3, 1, 1);
 indorg = find(Indout>0, 1, 'first');
 plot(seqmom - seqmom(Indout(indorg)), 4, 'ro');
 hold on
-plot(seqson - seqson(indorg), 3.5, 'k*')
+plot(seqson - seqson(indorg), 3.5, 'ko')
 text(0, 4.2, 'seqmom', 'color', 'r')
 text(0, 3.7, 'seqson', 'color', 'k')
 set(ha1, 'ylim', [2.5 5])

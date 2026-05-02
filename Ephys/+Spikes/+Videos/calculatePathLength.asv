@@ -1,0 +1,144 @@
+function [pathLengths, velocities, peak_velocities, t_rise] = calculatePathLength(x, y, t, leverPos)
+% Input: x, y - matrix of x and y coordinates, each row is a trial
+    %        t - optional time vector (defaults to 1:length(xi) if not provided)
+    %        leverPos - position of the lever, usually a low point
+    % Output: pathLength - cumulative distance along the trajectory
+    %             velocity - speed at each point (distance/time)
+    %             peak_velocities - peak velocity during reaching (NaN if
+    %             reaching didn't occur)
+    %             t_rise - time of crossing half way (base to lever position)
+% JY 2025 with Grok
+
+pathLengths      =   NaN(size(x));
+peak_velocities =   NaN(1, size(x, 1));
+velocities          =   NaN(size(x));
+t_rise               =   NaN(1, size(x, 1));
+
+if nargin<4
+    leverPos = [];
+end
+
+for ii =1:size(x, 1)
+    xi = x(ii, :);
+    yi = y(ii, :);
+    % Check if inputs are valid
+    if length(xi) ~= length(yi)
+        error('X and Y coordinate vectors must have the same length');
+    elseif length(t) ~= length(xi)
+        error('Time vector must have the same length as coordinate vectors')
+    end
+   
+    % Initialize variables
+    n = length(xi);
+    pathLength = NaN(1, n);  % Cumulative path length at each point
+    velocity    = NaN(1, n);
+    totalDist = 0;
+% Find first valid point index
+    firstValid = find(~(isnan(xi) | isnan(yi)), 1);
+    
+    % If no valid points exist
+    if isempty(firstValid)
+        return;  % Return all NaN array
+    end
+    
+    % Set initial valid point distance to NaN
+    pathLength(firstValid) = NaN;
+    velocity(firstValid) = NaN;
+
+    % Calculate distances between consecutive points
+    for i = firstValid+1:n
+        % Check if current or previous point is NaN
+        if isnan(xi(i)) || isnan(yi(i)) || isnan(xi(i-1)) || isnan(yi(i-1))
+            % Check if all subsequent points are NaN
+            if i < n  % Ensure there are points to check ahead
+                allSubsequentNaN = all(isnan(xi(i+1:end)) | isnan(yi(i+1:end)));
+                if allSubsequentNaN
+                    pathLength(i:end) = NaN;
+                    velocity(i:end) = NaN;
+                    break;  % Exit loop only if all remaining points are NaN
+                end
+            else  % If this is the last point and it's NaN
+                pathLength(i) = NaN;
+                velocity(i) = NaN;
+            end
+        else
+            % Calculate Euclidean distance between consecutive points
+            segmentDist = sqrt((xi(i) - xi(i-1))^2 + (yi(i) - yi(i-1))^2);
+            totalDist = totalDist + segmentDist;
+            pathLength(i) = totalDist;
+
+            % Calculate velocity (distance / time difference)
+            timeDiff = t(i) - t(i-1);
+            if timeDiff == 0
+                velocity(i) = NaN;  % Avoid division by zero
+            else
+                velocity(i) = segmentDist / timeDiff;
+            end
+
+        end
+    end
+    % check peak velocity in this trial
+    % Find the minimum value of yi
+    % make sure the peak velocity occured when the paw is reaching for the
+    % peak
+    min_yi                          =            min(yi);
+    base_yi                         =            yi(find(~isnan(yi), 1, 'first'));
+    threshold_onset            =            base_yi-abs(min_yi-base_yi)*0.25;
+
+    if isempty(leverPos)
+        leverPos                    =            base_yi-abs(min_yi-base_yi)*0.75;
+        half_way                    =            base_yi-abs(min_yi-base_yi)*0.5;
+    else
+        leverPos                    =            base_yi-abs(leverPos-base_yi)*0.75;
+        half_way                    =            base_yi-abs(leverPos-base_yi)*0.5;
+    end
+
+    if min_yi<leverPos % that is, a reach did not actually occur
+        ind_check                      =            find(yi<=threshold_onset,1, 'first');
+        velocity_check               =            velocity(ind_check:end);
+        t_check                         =            t(ind_check:end);
+        yi_check                        =            yi(ind_check:end);
+        % Find the index of the first occurrence of the minimum value
+        first_min_idx                =          find(yi_check == min_yi, 1, 'first');
+        % Get the corresponding time (xi value)
+        t_peak                          =          t_check(first_min_idx);
+        peak_velocities(ii)           =           max(velocity_check(t_check<t_peak));
+        t_rise(ii)  = t_check(find(yi_check<half_way, 1, 'first'));
+        
+    else
+        if false
+            figure(355); clf(355)
+            yyaxis left
+            plot(t, yi, 'ko-')
+            set(gca, 'xlim', [0 max(t)])
+            yyaxis right
+            plot(t, velocity, 'r+')
+            set(gca, 'xlim', [0 max(t)])
+        end
+    end
+
+    if t_rise(ii) <10
+            figure(355); clf(355)
+            yyaxis left
+            plot(t, yi, 'ko-')
+            set(gca, 'xlim', [0 max(t)])
+            yyaxis right
+            plot(t, velocity, 'r+')
+            set(gca, 'xlim', [0 max(t)])
+    end
+
+    if peak_velocities(ii) > 20
+        if false
+            figure(366); clf(366)
+            yyaxis left
+            plot(t, yi, 'ko-')
+            set(gca, 'xlim', [0 max(t)])
+            yyaxis right
+            plot(t, velocity, 'r+')
+            set(gca, 'xlim', [0 max(t)])
+        end
+    end
+
+    pathLengths(ii, :)              =           pathLength;
+    velocities(ii, :)                  =           velocity;
+end

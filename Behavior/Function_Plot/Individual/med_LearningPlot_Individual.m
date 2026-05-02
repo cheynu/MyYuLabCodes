@@ -74,21 +74,27 @@ TBT = table(TBTs.Name,TBTs.Date,TBTs.Task,TBTs.iTrial,TBTs.FP,...
 
 isTask500 = TBT.Task == "ThreeFPsMixedBpod";
 isTask750 = TBT.Task == "ThreeFPsMixedBpod750_1250_1750";
-isExist3FPs500 = ~isempty(isTask500);
-isExist3FPs750 = ~isempty(isTask750);
+isExist3FPs500 = sum(isTask500)>0;
+isExist3FPs750 = sum(isTask750)>0;
 isExist3FPs = isExist3FPs500 && isExist3FPs750;
 
 if isExist3FPs
     idx_3fp = TBT.FP==0.5 | TBT.FP==1.0 | TBT.FP==1.5...
         | TBT.FP==0.75 | TBT.FP==1.25 | TBT.FP==1.75;
+    TBT_3fp_cor = TBT(idx_3fp & TBT.Outcome==1,:);
+    TBT_3fp_cor.FP = string(TBT_3fp_cor.FP);
+    TBT_3fp_cor.FP = replace(TBT_3fp_cor.FP,{'0.75','1.25','1.75','0.5','1.5','1'},{'min','mid','max','min','max','mid'});
 elseif isExist3FPs500
     idx_3fp = TBT.FP==0.5 | TBT.FP==1.0 | TBT.FP==1.5;
+    TBT_3fp_cor = TBT(idx_3fp & TBT.Outcome==1,:);
+    TBT_3fp_cor.FP = string(TBT_3fp_cor.FP);
+    TBT_3fp_cor.FP = replace(TBT_3fp_cor.FP,{'0.75','1.25','1.75','0.5','1.5','1'},{'min','mid','max','min','max','mid'});
 elseif isExist3FPs750
     idx_3fp = TBT.FP==0.75 | TBT.FP==1.25 | TBT.FP==1.75;
+    TBT_3fp_cor = TBT(idx_3fp & TBT.Outcome==1,:);
+    TBT_3fp_cor.FP = string(TBT_3fp_cor.FP);
+    TBT_3fp_cor.FP = replace(TBT_3fp_cor.FP,{'0.75','1.25','1.75','0.5','1.5','1'},{'min','mid','max','min','max','mid'});
 end
-TBT_3fp_cor = TBT(idx_3fp & TBT.Outcome==1,:);
-TBT_3fp_cor.FP = string(TBT_3fp_cor.FP);
-TBT_3fp_cor.FP = replace(TBT_3fp_cor.FP,{'0.75','1.25','1.75','0.5','1.5','1'},{'min','mid','max','min','max','mid'});
 %% Plot
 cDarkGray = [0.2,0.2,0.2];
 cGreen = [0.4660 0.6740 0.1880];

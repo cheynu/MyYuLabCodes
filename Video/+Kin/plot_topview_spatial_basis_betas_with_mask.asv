@@ -1,0 +1,845 @@
+function hf = plot_topview_spatial_basis_betas_with_mask(result, basis, trial_info, varargin)
+% plot_topview_spatial_basis_betas_with_mask
+%
+% Plot top-view GLM result with:
+%   row 1 col 1: example basis function
+%   row 1 col 2: reconstructed head spatial field
+%   row 2 col 1: info panel
+%   row 2 col 2: scalar coefficient bar plot
+%
+% Supports:
+%   1) single-fit result from fit_poisson_elasticnet_glm_by_trial
+%   2) repeated-summary result from fit_poisson_elasticnet_glm_repeated
+%
+% Required inputs
+%   result      single-fit result struct OR repeated-summary struct
+%   basis       struct from Kin.design_shared_xy_basis_set
+%   trial_info  struct array from build_topview_trial_bin_table
+%
+% Name-value
+%   'Phase'                  default "toLever"
+%                            can be "toLever", "fromLever",
+%                            ["toLever","fromLever"], "both", or "all"
+%   'PositionPrefix'         default 'headPos'
+%   'CoeffNames'             default {'vx_cm_s','vy_cm_s','head_theta_cos','head_theta_sin','head_omega'}
+%   'FigureWidth'            default 15
+%   'FigureName'             default 'Top-view spatial tuning and action coefficients'
+%   'FigureTag'              default ''
+%   'FigureNumber'           default 31
+%   'NumTrialsToPlot'        default 20
+%   'BasisIndexToShow'       default []
+%   'ReverseY'               default true
+%   'FontName'               default 'Helvetica'
+%   'FontSize'               default 7
+%   'HorizontalGap'          default 1.2
+%   'VerticalGap'            default 1.2
+%   'MarkerSize'             default 18
+%   'TrajLineWidth'          default 0.2
+%   'SaveFigure'             default false
+%   'UseOccupancyMask'       default true
+%   'MaskColor'              default [.9 .9 .9]
+%   'MaskSmoothSigma'        default 1
+%   'MaskQuantileNonzero'    default 0
+%   'MaskUseSmoothedOcc'     default true
+%   'UseMaskedRegionForCLim' default true
+%   'AddTrajsToField'        default true
+
+% -------------------- parse --------------------
+p = inputParser;
+p.addRequired('result', @(x) isstruct(x));
+p.addRequired('basis', @(x) isstruct(x) && isfield(x, 'centers'));
+p.addRequired('trial_info', @(x) isstruct(x));
+
+p.addParameter('Phase', "toLever", @(x) ischar(x) || isstring(x) || iscell(x));
+p.addParameter('PositionPrefix', 'headPos', @(x) ischar(x) || isstring(x));
+p.addParameter('CoeffNames', ...
+    {'forward_speed_cm_s','lateral_speed_cm_s','head_omega','speed_cm_s','head_theta_cos','head_theta_sin'}, ...
+    @(x) iscell(x) || isstring(x));
+p.addParameter('FigureWidth', 15, @(x) isnumeric(x) && isscalar(x) && x > 5);
+p.addParameter('FigureName', 'Top-view spatial tuning and state/action coefficients', @(x) ischar(x) || isstring(x));
+p.addParameter('FigureTag', '', @(x) ischar(x) || isstring(x));
+p.addParameter('FigureNumber', 31, @(x) isnumeric(x) && isscalar(x));
+p.addParameter('NumTrialsToPlot', 20, @(x) isnumeric(x) && isscalar(x) && x >= 1);
+p.addParameter('BasisIndexToShow', [], @(x) isempty(x) || (isnumeric(x) && isscalar(x) && x >= 1));
+p.addParameter('ReverseY', true, @(x) islogical(x) && isscalar(x));
+p.addParameter('FontName', 'Helvetica', @(x) ischar(x) || isstring(x));
+p.addParameter('FontSize', 7, @(x) isnumeric(x) && isscalar(x) && x > 0);
+p.addParameter('HorizontalGap', 1.2, @(x) isnumeric(x) && isscalar(x) && x > 0);
+p.addParameter('VerticalGap', 1.2, @(x) isnumeric(x) && isscalar(x) && x > 0);
+p.addParameter('MarkerSize', 18, @(x) isnumeric(x) && isscalar(x) && x > 0);
+p.addParameter('TrajLineWidth', 0.2, @(x) isnumeric(x) && isscalar(x) && x > 0);
+p.addParameter('SaveFigure', false, @(x) islogical(x) && isscalar(x));
+p.addParameter('UseOccupancyMask', true, @(x) islogical(x) && isscalar(x));
+p.addParameter('MaskColor', [.9 .9 .9], @(x) isnumeric(x) && numel(x)==3);
+p.addParameter('MaskSmoothSigma', 1, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+p.addParameter('MaskQuantileNonzero', 0, @(x) isnumeric(x) && isscalar(x) && x >= 0 && x <= 1);
+p.addParameter('MaskUseSmoothedOcc', true, @(x) islogical(x) && isscalar(x));
+p.addParameter('UseMaskedRegionForCLim', true, @(x) islogical(x) && isscalar(x));
+p.addParameter('AddTrajsToField', true, @(x) islogical(x) && isscalar(x));
+p.addParameter('PositionMode', 'basis', @(x) any(strcmpi(string(x), ["basis","bin"])));
+
+p.parse(result, basis, trial_info, varargin{:});
+
+phases = local_normalize_phases(p.Results.Phase);
+phase_label = strjoin(cellstr(phases), '+');
+position_mode = lower(string(p.Results.PositionMode));
+position_prefix = char(string(p.Results.PositionPrefix));
+coeff_names = cellstr(string(p.Results.CoeffNames(:)));
+fig_width = p.Results.FigureWidth;
+fig_name = char(string(p.Results.FigureName));
+fig_tag = char(string(p.Results.FigureTag));
+fig_num = p.Results.FigureNumber;
+n_plot = p.Results.NumTrialsToPlot;
+basis_idx_to_show = p.Results.BasisIndexToShow;
+reverse_y = p.Results.ReverseY;
+font_name = char(string(p.Results.FontName));
+font_size = p.Results.FontSize;
+hgap = p.Results.HorizontalGap;
+vgap = p.Results.VerticalGap;
+marker_size = p.Results.MarkerSize;
+traj_lw = p.Results.TrajLineWidth;
+save_figure = p.Results.SaveFigure;
+use_mask = p.Results.UseOccupancyMask;
+mask_color = p.Results.MaskColor;
+mask_smooth_sigma = p.Results.MaskSmoothSigma;
+mask_quantile = p.Results.MaskQuantileNonzero;
+mask_use_smoothed = p.Results.MaskUseSmoothedOcc;
+use_masked_for_clim = p.Results.UseMaskedRegionForCLim;
+add_trajs = p.Results.AddTrajsToField;
+ 
+% -------------------- detect result mode --------------------
+is_average_mode = isfield(result, 'beta_mean') && isfield(result, 'feature_names');
+
+if is_average_mode
+    Tbeta = table( ...
+        string(result.feature_names(:)), ...
+        result.beta_mean(:), ...
+        abs(result.beta_mean(:)), ...
+        'VariableNames', {'feature_name','beta','abs_beta'});
+else
+    if ~isfield(result, 'beta_table') || ~istable(result.beta_table)
+        error('Single-fit mode requires result.beta_table.');
+    end
+    Tbeta = result.beta_table(:, {'feature_name','beta','abs_beta'});
+    Tbeta.feature_name = string(Tbeta.feature_name);
+end
+
+if isempty(basis_idx_to_show)
+    [~, basis_idx_to_show] = min(sum(basis.centers.^2, 2));
+end
+basis_idx_to_show = min(max(1, basis_idx_to_show), basis.K);
+
+% -------------------- reconstruct spatial field --------------------
+if strcmp(position_mode, "basis")
+field_info = local_prepare_topview_field( ...
+    Tbeta, basis, trial_info, phases, position_prefix, ...
+    'UseOccupancyMask', use_mask, ...
+    'MaskSmoothSigma', mask_smooth_sigma, ...
+    'MaskQuantileNonzero', mask_quantile, ...
+    'MaskUseSmoothedOcc', mask_use_smoothed, ...
+    'UseMaskedRegionForCLim', use_masked_for_clim);
+else
+
+end
+
+field_info = Kin.local_prepare_topview_field( ...
+    Tbeta, basis, trial_info, phases, position_prefix, ...
+    'PositionMode', position_mode, ...
+    'UseOccupancyMask', use_mask, ...
+    'MaskSmoothSigma', mask_smooth_sigma, ...
+    'MaskQuantileNonzero', mask_quantile, ...
+    'MaskUseSmoothedOcc', mask_use_smoothed, ...
+    'UseMaskedRegionForCLim', use_masked_for_clim);
+
+% -------------------- extract scalar coeffs --------------------
+beta_vals = zeros(numel(coeff_names), 1);
+for i = 1:numel(coeff_names)
+    beta_vals(i) = local_extract_scalar_beta(Tbeta, coeff_names{i});
+end
+mx_beta = max(abs(beta_vals));
+if mx_beta == 0
+    mx_beta = 1;
+end
+
+if mx_beta < 0.5
+    mx_beta = 0.5;
+end
+
+mx_beta = ceil(mx_beta*10)/10;
+
+% -------------------- layout --------------------
+left = 0.9;
+right = 0.7;
+top = 1.3;
+bottom = 0.8;
+title_h = 0.55;
+cb_w = 0.15;
+
+col1_w = 3.2;
+col2_w = 6.0;
+
+x_lim = [basis.x_range(1), basis.x_range(2)];
+y_lim = [basis.y_range(1), basis.y_range(2)];
+xy_aspect = diff(y_lim) / diff(x_lim);
+
+row1_h = col1_w * xy_aspect;
+row2_h = 3.6;
+
+fig_height = bottom + row2_h + vgap + row1_h + top + title_h;
+fig_width = max(fig_width, left + col1_w + hgap + col2_w + right);
+
+% -------------------- figure --------------------
+hf = figure(fig_num); clf(hf);
+set(hf, 'Color', 'w', ...
+    'Units', 'centimeters', ...
+    'Position', [2 2 fig_width fig_height], ...
+    'Name', fig_name, ...
+    'Visible', 'on');
+
+if is_average_mode
+    title_str = sprintf('%s\n|phase: %s\nAverage across %d splits \n%s', fig_name, phase_label, result.n_repeats, string(result.unit_id));
+else
+    if isfield(result, 'unit_id')
+        title_str = sprintf('%s\n%s | phase: %s', fig_name, string(result.unit_id), phase_label);
+    else
+        title_str = sprintf('%s\nphase: %s', fig_name, phase_label);
+    end
+end
+
+annotation(hf, 'textbox', ...
+    'Units', 'centimeters', ...
+    'Position', [left, fig_height-top-title_h+.5, fig_width-left-right, title_h], ...
+    'String', title_str, ...
+    'EdgeColor', 'none', ...
+    'HorizontalAlignment', 'center', ...
+    'VerticalAlignment', 'middle', ...
+    'FontWeight', 'bold', ...
+    'FontName', font_name, ...
+    'FontSize', font_size+1, ...
+    'Interpreter', 'none');
+
+row1_y = bottom + row2_h + vgap;
+row2_y = bottom;
+
+rng(41);
+trial_sel = local_select_phase_trials(trial_info, phases, n_plot);
+
+% ============================================================
+% row 1 col 1: example basis function
+% ============================================================
+ax1 = axes('Parent', hf, 'Units', 'centimeters', ...
+    'Position', [left row1_y col1_w row1_h], ...
+    'FontName', font_name, 'FontSize', font_size, ...
+    'LineWidth', 0.5, 'Box', 'off');
+hold(ax1, 'on');
+
+if strcmp(position_mode, "basis")
+    [basis_field, xq_b, yq_b] = local_eval_one_basis(basis, basis_idx_to_show, 120);
+    imagesc(ax1, xq_b, yq_b, basis_field);
+else
+    Kin.plot_xy_bin_grid(ax1, basis, ...
+        'BinPlot', basis_idx_to_show, ...
+        'ShowCenters', false);
+end
+
+set(ax1, 'YDir', ternary(reverse_y, 'reverse', 'normal'));
+% axis(ax1, 'equal');
+axis(ax1, [x_lim y_lim]);
+
+plot(ax1, basis.centers(:,1), basis.centers(:,2), 'w+', 'MarkerSize', 2, 'LineWidth', 0.5);
+local_plot_topview_trajectories(ax1, trial_info, phases, trial_sel, traj_lw);
+scatter(ax1, 0, 0, 'o', 'MarkerFaceColor', 'r', 'MarkerEdgeColor', 'none', 'SizeData', marker_size);
+
+xlabel(ax1, 'x (cm)');
+ylabel(ax1, 'y (cm)');
+title(ax1, sprintf('Example basis (%02d)', basis_idx_to_show), ...
+    'FontName', font_name, 'FontSize', font_size, 'Interpreter', 'none');
+colormap(ax1, parula);
+grid(ax1, 'off');
+
+line(ax1, [20 22], [10 10], 'color', 'w', 'linewidth', 1);
+line(ax1, [20 20], [8 10], 'color', 'w', 'linewidth', 1);
+
+cb1 = colorbar(ax1, 'eastoutside');
+cb1.Units = 'centimeters';
+cb1.Position(1) = ax1.Position(1)+ax1.Position(3)+0.1;
+cb1.Position(2) = ax1.Position(2);
+cb1.Position(3) = cb_w;
+cb1.Position(4) = row1_h;
+
+% ============================================================
+% row 1 col 2: reconstructed field
+% ============================================================
+x0 = left + col1_w + hgap;
+ax2 = axes('Parent', hf, 'Units', 'centimeters', ...
+    'Position', [x0 row1_y col1_w row1_h], ...
+    'FontName', font_name, 'FontSize', font_size, ...
+    'LineWidth', 0.5, 'Box', 'off');
+hold(ax2, 'on');
+
+imagesc(ax2, field_info.xq, field_info.yq, field_info.F, 'CDataMapping', 'scaled');
+set(ax2, 'YDir', ternary(reverse_y, 'reverse', 'normal'));
+axis(ax2, 'equal');
+axis(ax2, [x_lim y_lim]);
+
+if add_trajs
+    local_plot_topview_trajectories(ax2, trial_info, phases, trial_sel(1:1:length(trial_sel)), traj_lw);
+end
+
+if use_mask
+    unsupported = ~field_info.support_mask;
+    mask_rgb = zeros([size(unsupported), 3]);
+    for c = 1:3
+        mask_rgb(:,:,c) = mask_color(c);
+    end
+    hmask = image(ax2, field_info.xq, field_info.yq, mask_rgb);
+    set(hmask, 'AlphaData', double(unsupported));
+    uistack(hmask, 'top');
+end
+
+scatter(ax2, 0, 0, 'o', 'MarkerFaceColor', 'r', 'MarkerEdgeColor', 'none', 'SizeData', marker_size);
+title(ax2, sprintf('Reconstructed spatial field (%s)', phase_label), ...
+    'FontName', font_name, 'FontSize', font_size, 'Interpreter', 'none');
+xlabel(ax2, 'x (cm)');
+ylabel(ax2, 'y (cm)');
+colormap(ax2, local_topview_diverging_colormap());
+axis off
+ax2.XTick = [];
+ax2.YTick = [];
+
+mx = max(abs(field_info.clim));
+if mx > 0.2
+    mx = ceil(mx*10)/10;
+    clim(ax2, [-mx mx]);
+else
+    clim(ax2, [-0.2 0.2]);
+end
+
+cb2 = colorbar(ax2, 'southoutside');
+cb2.Units = 'centimeters';
+cb2.Position = [x0 row1_y-0.25 col1_w 0.15];
+cb2.FontName = font_name;
+cb2.FontSize = font_size;
+cb2.Label.String = 'log-rate contribution';
+
+% ============================================================
+% row 2 col 1: info panel
+% ============================================================
+ax3 = axes('Parent', hf, 'Units', 'centimeters', ...
+    'Position', [left row2_y col1_w row2_h], ...
+    'Visible', 'off');
+hold(ax3, 'on');
+
+txt = local_make_topview_info_text(result, basis, phases, coeff_names, position_mode);
+text(ax3, 0, 1, txt, ...
+    'Units', 'normalized', ...
+    'HorizontalAlignment', 'left', ...
+    'VerticalAlignment', 'top', ...
+    'FontName', font_name, ...
+    'FontSize', font_size, ...
+    'Interpreter', 'none');
+
+% ============================================================
+% row 2 col 2: scalar coefficients
+% ============================================================
+beta_panel_w = 1.8;
+beta_panel_h = 2.2;
+
+beta_x0 = x0 + (col2_w - beta_panel_w)/2;
+beta_y0 = row2_y + (row2_h - beta_panel_h)/2;
+
+ax4 = axes('Parent', hf, 'Units', 'centimeters', ...
+    'Position', [beta_x0 beta_y0 beta_panel_w beta_panel_h], ...
+    'FontName', font_name, 'FontSize', font_size, ...
+    'LineWidth', 0.5, 'Box', 'off');
+
+hold(ax4, 'on');
+
+bar(ax4, 1:numel(coeff_names), beta_vals, 0.72);
+
+% add a line
+idx_speed = find(strcmp(coeff_names, 'speed_cm_s'), 1);
+if ~isempty(idx_speed) && idx_speed < numel(coeff_names)
+    xline(ax4, idx_speed + 0.5, ':', 'LineWidth', 0.5, 'Color', [0.6 0.6 0.6]);
+end
+
+xlim(ax4, [0.4, numel(coeff_names)+0.6]);
+xticks(ax4, 1:numel(coeff_names));
+xticklabels(ax4, strrep(coeff_names, '_', '\_'));
+xtickangle(ax4, 25);
+ylabel(ax4, '\beta');
+title(ax4, 'Linear state/action terms', ...
+    'FontName', font_name, 'FontSize', font_size, 'Interpreter', 'none');
+
+ylim(ax4, local_nice_ylim([-mx_beta mx_beta]));
+yline(ax4, 0, ':', 'LineWidth', 0.5, 'Color', [0.6 0.6 0.6]);
+grid(ax4, 'on');
+ax4.YGrid = 'off';
+ax4.XGrid = 'off';
+
+% -------------------- save --------------------
+if save_figure
+    adjust_figure_size(hf, 1);
+
+    if isfield(result, 'unit_id')
+        unit_str = local_safe_str(result.unit_id);
+    else
+        unit_str = 'unit';
+    end
+
+    figName = sprintf('topview_spatial_tuning_%s_%s_%s', ...
+        unit_str, local_safe_str(phase_label), local_safe_str(fig_tag));
+
+    outFolder = fullfile(pwd, 'figure', 'glm');
+    if ~exist(outFolder, 'dir')
+        mkdir(outFolder);
+    end
+    save_fig(hf, figName, outFolder, "Format", {"png","pdf","svg"});
+
+    write_meta( ...
+        figName, ...
+        'MetaFolder', outFolder, ...
+        'Description', 'Top-view basis-reconstructed spatial tuning field and scalar GLM coefficients', ...
+        'Purpose', 'To visualize top-view spatial field and action/orientation coefficients from GLM', ...
+        'GeneratorFunction', 'Kin.plot_topview_spatial_basis_betas_with_mask', ...
+        'GeneratorScript', '', ...
+        'Inputs', { ...
+            sprintf('phase: %s', phase_label), ...
+            sprintf('position_prefix: %s', position_prefix), ...
+            sprintf('coeff_names: %s', strjoin(string(coeff_names), ', ')), ...
+            sprintf('use_mask: %d', use_mask), ...
+            sprintf('mask_quantile: %.4f', mask_quantile), ...
+            sprintf('is_average_mode: %d', is_average_mode) ...
+        });
+end
+
+end
+
+% ============================================================
+% helpers
+% ============================================================
+
+function phases = local_normalize_phases(phase_in)
+phases = string(phase_in);
+phases = phases(:)';
+
+if any(strcmpi(phases, "all")) || any(strcmpi(phases, "both"))
+    phases = ["toLever","fromLever"];
+end
+
+phases = unique(phases, 'stable');
+end
+
+function field_info = local_prepare_topview_field(Tbeta, basis, trial_info, phases, position_prefix, varargin)
+
+p = inputParser;
+p.addParameter('UseOccupancyMask', true, @(x) islogical(x) && isscalar(x));
+p.addParameter('MaskSmoothSigma', 1, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+p.addParameter('MaskQuantileNonzero', 0, @(x) isnumeric(x) && isscalar(x) && x >= 0 && x <= 1);
+p.addParameter('MaskUseSmoothedOcc', true, @(x) islogical(x) && isscalar(x));
+p.addParameter('UseMaskedRegionForCLim', true, @(x) islogical(x) && isscalar(x));
+p.parse(varargin{:});
+
+use_mask = p.Results.UseOccupancyMask;
+mask_smooth_sigma = p.Results.MaskSmoothSigma;
+mask_quantile = p.Results.MaskQuantileNonzero;
+mask_use_smoothed = p.Results.MaskUseSmoothedOcc;
+use_masked_for_clim = p.Results.UseMaskedRegionForCLim;
+
+fn = string(Tbeta.feature_name);
+pat = "^" + string(position_prefix) + "_basis_(\d+)$";
+is_basis = ~cellfun(@isempty, regexp(cellstr(fn), char(pat), 'once'));
+
+Tb = Tbeta(is_basis, :);
+if isempty(Tb)
+    error('No basis coefficients found for prefix "%s".', position_prefix);
+end
+
+basis_idx = nan(height(Tb), 1);
+for i = 1:height(Tb)
+    tok = regexp(char(Tb.feature_name(i)), char(pat), 'tokens', 'once');
+    if isempty(tok)
+        continue
+    end
+    basis_idx(i) = str2double(tok{1});
+end
+
+beta_by_basis = zeros(basis.K, 1);
+good = isfinite(basis_idx) & basis_idx >= 1 & basis_idx <= basis.K;
+beta_by_basis(basis_idx(good)) = Tb.beta(good);
+
+ngrid = 140;
+xq = linspace(basis.x_range(1), basis.x_range(2), ngrid);
+yq = linspace(basis.y_range(1), basis.y_range(2), ngrid);
+[Xq, Yq] = meshgrid(xq, yq);
+
+F = zeros(size(Xq));
+for k = 1:basis.K
+    cx = basis.centers(k,1);
+    cy = basis.centers(k,2);
+    Phi = exp( ...
+        -0.5 * ((Xq - cx) ./ basis.sigma_x).^2 ...
+        -0.5 * ((Yq - cy) ./ basis.sigma_y).^2 );
+    F = F + beta_by_basis(k) * Phi;
+end
+
+support_mask = true(size(F));
+occ = zeros(size(F));
+
+if use_mask
+    [x_occ, y_occ] = local_collect_phase_xy(trial_info, phases);
+
+    if ~isempty(x_occ)
+        x_edges = linspace(basis.x_range(1), basis.x_range(2), ngrid+1);
+        y_edges = linspace(basis.y_range(1), basis.y_range(2), ngrid+1);
+        occ = histcounts2(y_occ, x_occ, y_edges, x_edges);
+
+        if mask_smooth_sigma > 0
+            kernel_size = max(3, ceil(mask_smooth_sigma * 6));
+            if mod(kernel_size,2) == 0
+                kernel_size = kernel_size + 1;
+            end
+            G = fspecial('gaussian', [kernel_size kernel_size], mask_smooth_sigma);
+            occ_s = imfilter(occ, G, 'replicate');
+        else
+            occ_s = occ;
+        end
+
+        if mask_use_smoothed
+            occ_ref = occ_s;
+        else
+            occ_ref = occ;
+        end
+
+        nz = occ_ref(occ_ref > 0);
+        if isempty(nz)
+            thresh = 0;
+        else
+            thresh = quantile(nz, mask_quantile);
+        end
+
+        support_mask = occ_ref > thresh;
+
+        if ~isequal(size(support_mask), size(F))
+            support_mask = imresize(double(support_mask), size(F), 'nearest') > 0.5;
+        end
+    end
+end
+
+if use_masked_for_clim && any(support_mask(:))
+    vals = F(support_mask);
+else
+    vals = F(:);
+end
+
+if isempty(vals) || all(~isfinite(vals))
+    clim = [-1 1];
+else
+    mx = max(abs(vals), [], 'omitnan');
+    if ~isfinite(mx) || mx == 0
+        mx = 1;
+    end
+    clim = [-mx mx];
+end
+
+field_info = struct();
+field_info.F = F;
+field_info.xq = xq;
+field_info.yq = yq;
+field_info.support_mask = support_mask;
+field_info.occ = occ;
+field_info.clim = clim;
+field_info.beta_by_basis = beta_by_basis;
+end
+
+function beta = local_extract_scalar_beta(T, feature_name)
+fn = string(T.feature_name);
+idx = find(fn == string(feature_name), 1);
+if isempty(idx)
+    beta = 0;
+else
+    beta = T.beta(idx);
+end
+end
+
+function [F, xq, yq] = local_eval_one_basis(basis, k, ngrid)
+xq = linspace(basis.x_range(1), basis.x_range(2), ngrid);
+yq = linspace(basis.y_range(1), basis.y_range(2), ngrid);
+[Xq, Yq] = meshgrid(xq, yq);
+
+cx = basis.centers(k,1);
+cy = basis.centers(k,2);
+
+F = exp( ...
+    -0.5 * ((Xq - cx) ./ basis.sigma_x).^2 ...
+    -0.5 * ((Yq - cy) ./ basis.sigma_y).^2 );
+end
+
+function trial_sel = local_select_phase_trials(trial_info, phases, n_plot)
+
+phases = string(phases);
+phases = phases(:)';
+
+has_phase = false(numel(trial_info), 1);
+
+for k = 1:numel(trial_info)
+    found_one = false;
+
+    for i = 1:numel(phases)
+        phase_field = matlab.lang.makeValidName(char(phases(i)));
+
+        if isfield(trial_info(k), phase_field) && ~isempty(trial_info(k).(phase_field))
+            P = trial_info(k).(phase_field);
+            if isfield(P, 'head_x_rel_cm') && ~isempty(P.head_x_rel_cm)
+                found_one = true;
+                break
+            end
+        end
+    end
+
+    has_phase(k) = found_one;
+end
+
+idx = find(has_phase);
+if isempty(idx)
+    trial_sel = [];
+    return
+end
+
+n_plot = min(n_plot, numel(idx));
+trial_sel = idx(randperm(numel(idx), n_plot));
+end
+
+function [x_all, y_all] = local_collect_phase_xy(trial_info, phases)
+
+phases = string(phases);
+phases = phases(:)';
+
+x_all = [];
+y_all = [];
+
+for k = 1:numel(trial_info)
+    for i = 1:numel(phases)
+        phase_field = matlab.lang.makeValidName(char(phases(i)));
+
+        if ~isfield(trial_info(k), phase_field) || isempty(trial_info(k).(phase_field))
+            continue
+        end
+
+        P = trial_info(k).(phase_field);
+
+        if ~isfield(P, 'head_x_rel_cm') || ~isfield(P, 'head_y_rel_cm')
+            continue
+        end
+
+        x = P.head_x_rel_cm;
+        y = P.head_y_rel_cm;
+
+        if isfield(P, 'valid') && ~isempty(P.valid)
+            v = logical(P.valid);
+        else
+            v = true(size(x));
+        end
+
+        good = v & isfinite(x) & isfinite(y);
+
+        x_all = [x_all; x(good)]; %#ok<AGROW>
+        y_all = [y_all; y(good)]; %#ok<AGROW>
+    end
+end
+end
+
+function local_plot_topview_trajectories(ax, trial_info, phases, trial_sel, lw)
+
+phases = string(phases);
+phases = phases(:)';
+
+phase_colors = struct();
+phase_colors.toLever   = [.5 .5 .5];
+phase_colors.fromLever = [.5 .5 .5];
+
+phase_line = struct();
+phase_line.toLever   = '-';
+phase_line.fromLever = ':';
+
+
+for ii = 1:numel(trial_sel)
+    k = trial_sel(ii);
+
+    for i = 1:numel(phases)
+        phase_name = string(phases(i));
+        phase_field = matlab.lang.makeValidName(char(phase_name));
+
+        if ~isfield(trial_info(k), phase_field) || isempty(trial_info(k).(phase_field))
+            continue
+        end
+
+        P = trial_info(k).(phase_field);
+
+        if ~isfield(P, 'head_x_rel_cm') || ~isfield(P, 'head_y_rel_cm')
+            continue
+        end
+
+        x = P.head_x_rel_cm;
+        y = P.head_y_rel_cm;
+
+        if isempty(x) || isempty(y)
+            continue
+        end
+
+        if isfield(P, 'valid') && ~isempty(P.valid)
+            v = logical(P.valid);
+        else
+            v = true(size(x));
+        end
+
+        x(~v) = NaN;
+        y(~v) = NaN;
+
+        if isfield(phase_colors, phase_field)
+            lc = phase_colors.(phase_field);
+            ls = phase_line.(phase_field);
+        else
+            lc = [0 0 0];
+            ls = '-';
+        end
+
+        plot(ax, x, y, '-', 'LineWidth', lw, 'Color', lc, 'LineStyle', ls);
+    end
+end
+end
+
+function txt = local_make_topview_info_text(result, basis, phases, coeff_names, position_mode)
+
+if isfield(result, 'unit_id')
+    u = string(result.unit_id);
+else
+    u = "";
+end
+
+phase_label = strjoin(cellstr(string(phases)), '+');
+
+if isfield(result, 'n_repeats')
+    pr2 = getfield_safe(result, 'pR2_test_mean', NaN);
+    pr2_med = getfield_safe(result, 'pR2_test_median', NaN);
+    lam = getfield_safe(result, 'lambda_best_mean', NaN);
+    nrep = getfield_safe(result, 'n_repeats', NaN);
+
+    if strcmp(position_mode, 'basis')
+        txt = sprintf([ ...
+            'unit: %s\n' ...
+            'phase: %s\n' ...
+            'test pR^2 mean: %.4f\n' ...
+            'test pR^2 median: %.4f\n' ...
+            'lambda mean: %.4g\n' ...
+            'n repeats: %d\n' ...
+            'basis: %d x %d (%d)\n' ...
+            '\\sigma_x: %.3g\n' ...
+            '\\sigma_y: %.3g\n' ...
+            'linear terms: %s'], ...
+            char(u), phase_label, pr2, pr2_med, lam, round(nrep), ...
+            basis.nx, basis.ny, basis.K, ...
+            basis.sigma_x, basis.sigma_y, ...
+            strjoin(string(coeff_names), ', '));
+    else
+        txt = sprintf([ ...
+            'unit: %s\n' ...
+            'phase: %s\n' ...
+            'test pR^2 mean: %.4f\n' ...
+            'test pR^2 median: %.4f\n' ...
+            'lambda mean: %.4g\n' ...
+            'n repeats: %d\n' ...
+            'basis: %d x %d (%d)\n' ...
+            'linear terms: %s'], ...
+            char(u), phase_label, pr2, pr2_med, lam, round(nrep), ...
+            basis.nx, basis.ny, basis.K, ...
+            strjoin(string(coeff_names), ', '));
+
+    end
+else
+    pr2 = getfield_safe(result, 'pR2_test', NaN);
+    lam = getfield_safe(result, 'lambda_best', NaN);
+    nsp = getfield_safe(result, 'n_spikes_used', NaN);
+    if strcmp(position_mode, 'basis')
+
+        txt = sprintf([ ...
+            'unit: %s\n' ...
+            'phase: %s\n' ...
+            'test pR^2: %.4f\n' ...
+            'lambda: %.4g\n' ...
+            'n spikes used: %d\n' ...
+            'basis: %d x %d (%d)\n' ...
+            '\\sigma_x: %.3g\n' ...
+            '\\sigma_y: %.3g\n' ...
+            'linear coeffs: %s'], ...
+            char(u), phase_label, pr2, lam, round(nsp), ...
+            basis.nx, basis.ny, basis.K, ...
+            basis.sigma_x, basis.sigma_y, ...
+            strjoin(string(coeff_names), ', '));
+    else
+        txt = sprintf([ ...
+            'unit: %s\n' ...
+            'phase: %s\n' ...
+            'test pR^2: %.4f\n' ...
+            'lambda: %.4g\n' ...
+            'n spikes used: %d\n' ...
+            'basis: %d x %d (%d)\n' ...
+            'linear coeffs: %s'], ...
+            char(u), phase_label, pr2, lam, round(nsp), ...
+            basis.nx, basis.ny, basis.K, ...
+            strjoin(string(coeff_names), ', '));
+    end
+end
+end
+
+
+
+function out = getfield_safe(S, field_name, default_val)
+if isfield(S, field_name)
+    out = S.(field_name);
+else
+    out = default_val;
+end
+end
+
+function yl = local_nice_ylim(raw_lim)
+mx = max(abs(raw_lim));
+if mx == 0
+    mx = 1;
+end
+yl = [-1.05*mx, 1.05*mx];
+end
+
+function out = local_safe_str(x)
+x = string(x);
+x = regexprep(x, '[^\w-]+', '_');
+out = char(x);
+end
+
+function out = ternary(cond, a, b)
+if cond
+    out = a;
+else
+    out = b;
+end
+end
+
+function cmap = local_topview_diverging_colormap()
+cmap = customcolormap(linspace(0,1,11), ...
+    {'#68011d','#b5172f','#d75f4e','#f7a580','#fedbc9', ...
+     '#f5f9f3','#d5e2f0','#93c5dc','#4295c1','#2265ad','#062e61'});
+end
+
+function labels = local_pretty_coeff_labels(coeff_names)
+coeff_names = string(coeff_names);
+labels = coeff_names;
+
+labels(coeff_names == "forward_speed_cm_s") = "forward";
+labels(coeff_names == "lateral_speed_cm_s") = "lateral";
+labels(coeff_names == "head_omega") = "\omega";
+labels(coeff_names == "speed_cm_s") = "speed";
+labels(coeff_names == "head_theta_cos") = "cos(\theta)";
+labels(coeff_names == "head_theta_sin") = "sin(\theta)";
+
+labels = cellstr(labels);
+end

@@ -119,7 +119,7 @@ function [BpodData,filename,sbjname] = importdata(filepath)
         filepath = []
     end
     if ~isfolder(filepath)
-        [filename,pathname] = uigetfile('*Med*.mat','MultiSelect','on');
+        [filename,pathname] = uigetfile('*Med*.mat','Select BPOD files to be analysed','MultiSelect','on');
     else
         pathname = filepath;
         filename = arrayfun(@(x)x.name,dir(fullfile(filepath,'*Med*.mat')),'UniformOutput',false)';

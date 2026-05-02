@@ -1,0 +1,138 @@
+function plot_head_kinematics_table(T, figH)
+%PLOT_HEAD_KINEMATICS_TABLE Plot kinematics summary from head table.
+%
+% - Unwraps head angle within continuous kept segments (so no +/-pi jumps)
+% - Normalizes time using trailing digits in Source (assumed ms)
+%
+% Required columns (preferred names):
+%   time (ms), head_x, head_y
+%   head_theta or head_angle (rad)
+%   speed or velocity
+%   omega or angular_velocity
+%   accel or acceleration
+% Optional:
+%   kept_mask (logical) to define segments; otherwise uses finite head_x/head_y/head angle.
+
+if nargin < 2 || isempty(figH) || ~ishandle(figH)
+    figH = figure;
+else
+    figure(figH);
+end
+clf(figH);
+
+% ---- trial string / t0 ----
+trialStr = "";
+if any(strcmp(T.Properties.VariableNames, 'Source'))
+    s = T.Source(1);
+    if iscell(s); s = s{1}; end
+    trialStr = string(s);
+end
+if strlength(trialStr)==0
+    trialStr = "trial";
+end
+
+tok = regexp(trialStr, '\d+$', 'match', 'once');
+if isempty(tok)
+    t0_ms = T.time(1);
+else
+    t0_ms = str2double(tok);
+end
+
+% ---- time relative (sec) ----
+t_ms  = T.time;
+t_rel = (t_ms - t0_ms) / 1000;
+
+% ---- fetch columns robustly ----
+hx = T.head_x;
+hy = T.head_y;
+
+if any(strcmp(T.Properties.VariableNames, 'head_theta'))
+    head_ang = T.head_theta;
+elseif any(strcmp(T.Properties.VariableNames, 'head_angle'))
+    head_ang = T.head_angle;
+else
+    head_ang = nan(height(T),1);
+end
+
+if any(strcmp(T.Properties.VariableNames, 'speed'))
+    spd = T.speed;
+elseif any(strcmp(T.Properties.VariableNames, 'velocity'))
+    spd = T.velocity;
+else
+    spd = nan(height(T),1);
+end
+
+if any(strcmp(T.Properties.VariableNames, 'omega'))
+    omg = T.omega;
+elseif any(strcmp(T.Properties.VariableNames, 'angular_velocity'))
+    omg = T.angular_velocity;
+else
+    omg = nan(height(T),1);
+end
+
+if any(strcmp(T.Properties.VariableNames, 'accel'))
+    acc = T.accel;
+elseif any(strcmp(T.Properties.VariableNames, 'acceleration'))
+    acc = T.acceleration;
+else
+    acc = nan(height(T),1);
+end
+
+% ---- define continuous segments for unwrap ----
+n = height(T);
+
+if any(strcmp(T.Properties.VariableNames, 'kept_mask'))
+    segMask = T.kept_mask(:) & isfinite(head_ang) & isfinite(t_rel);
+else
+    segMask = isfinite(head_ang) & isfinite(hx) & isfinite(hy) & isfinite(t_rel);
+end
+
+% Find contiguous segments (toolbox-free)
+d = diff([false; segMask; false]);
+starts = find(d==1);
+ends   = find(d==-1) - 1;
+
+% ---- unwrap head angle within each segment ----
+head_ang_u = head_ang;
+for s = 1:numel(starts)
+    idx = starts(s):ends(s);
+    head_ang_u(idx) = unwrap(head_ang_u(idx));
+end
+
+% ---- plotting ----
+isOk = @(v) isfinite(t_rel) & isfinite(v);
+
+tl = tiledlayout(figH, 6, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+title(tl, sprintf('%s | t0(ms)=%g', trialStr, t0_ms), 'Interpreter','none');
+
+nexttile;
+m = isOk(hx);
+plot(t_rel(m), hx(m), '-o');
+ylabel('head\_x (px)'); grid on;
+
+nexttile;
+m = isOk(hy);
+plot(t_rel(m), hy(m), '-o');
+ylabel('head\_y (px)'); grid on;
+
+nexttile;
+m = isOk(head_ang_u);
+plot(t_rel(m), head_ang_u(m), '-o');
+ylabel('head angle (rad, unwrapped)'); grid on;
+
+nexttile;
+m = isOk(spd);
+plot(t_rel(m), spd(m), '-o');
+ylabel('speed (px/s)'); grid on;
+
+nexttile;
+m = isOk(omg);
+plot(t_rel(m), omg(m), '-o', 'markersize', 4, 'facecolor');
+ylabel('\omega (rad/s)'); grid on;
+
+nexttile;
+m = isOk(acc);
+plot(t_rel(m), acc(m), '-o');
+ylabel('accel (px/s^2)'); xlabel('t - trial# (s)'); grid on;
+
+end

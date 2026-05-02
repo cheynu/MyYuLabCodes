@@ -303,7 +303,10 @@ classdef KornblumGroupClass
             end
         end
 
-        function obj = PlotChemoEffect(obj)
+        function obj = PlotChemoEffect(obj, plot_cue)
+            if nargin<2
+                plot_cue = 1;
+            end
             % Compare effect of chemo inactivation on the performance
             set_matlab_default;
             % This is to plot pre and post lesion hold time PDF, which gives
@@ -316,7 +319,7 @@ classdef KornblumGroupClass
             FPColors = [45, 205, 223]/255;
             SessionsCol = [3, 0, 28]/255;
 
-            figure(obj.Fig3); clf(obj.Fig3)
+            hf = figure(obj.Fig3); clf(obj.Fig3)
             set(obj.Fig3, 'unit', 'centimeters', 'position',[2 2 40 15], 'paperpositionmode', 'auto', 'color', 'w')
 
             CueSymbol = 'o';
@@ -328,21 +331,30 @@ classdef KornblumGroupClass
             MarkerAlpha = 0.5;
             HoldTimeRange = unique(obj.MixedFP)/1000+[-0.5 0.5];
 
+            % tempvar = reshape([cell2mat(obj.HoldTMedian_Control)  cell2mat(obj.HoldTMedian_Chemo)], 1, []);
+            tempvar = [cell2mat(obj.HoldTMedian_Control)  cell2mat(obj.HoldTMedian_Chemo)];
+            tempvar = tempvar(1,:);
+            HoldTimeRange = round([min(tempvar)-0.1 max(tempvar)+0.1], 2);
+
+            ticks =round((HoldTimeRange(1):diff(HoldTimeRange)/5:HoldTimeRange(2)),2);
+
             ha_HoldT1 = axes('nextplot', 'add', 'unit', 'centimeters', 'position',[xlevel ylevel 5 5], 'xlim', HoldTimeRange, ...
-                'xtick',[0.2:0.2:3], 'ylim', HoldTimeRange,'ytick', [0:0.2:3], 'ticklength', [0.02 0.1]);
+                'xtick',ticks, 'ylim', HoldTimeRange,'ytick', ticks, 'ticklength', [0.02 0.1]);
             line(HoldTimeRange, HoldTimeRange, 'linestyle','-.', 'linewidth', 1, 'color', [0.6 0.6 0.6])
             title('Hold time (median)')
-            xlabel('Control (sec)')
+            xlabel('Saline (sec)')
             ylabel('Chemo (sec)')
 
             % Plot cue trials
-            line(obj.HoldTMedian_Control{1}(1, [2 3]), obj.HoldTMedian_Chemo{1}(1, 1)*[1 1], 'linewidth', 1.0, 'color',CIColor)
-            line(obj.HoldTMedian_Control{1}(1, 1)*[1 1], obj.HoldTMedian_Chemo{1}(1, [2 3]), 'linewidth', 1.0, 'color',CIColor)
-            MarkerSize = 65;
-            scatter(obj.HoldTMedian_Control{1}(1, 1), ...
-                obj.HoldTMedian_Chemo{1}(1, 1), ...
-                'Marker', CueSymbol, 'SizeData', MarkerSize, 'LineWidth', 1, ...
-                'MarkerFaceColor', SessionsCol, 'MarkerEdgeColor', 'k', 'MarkerFaceAlpha',MarkerAlpha);
+            if plot_cue
+                line(obj.HoldTMedian_Control{1}(1, [2 3]), obj.HoldTMedian_Chemo{1}(1, 1)*[1 1], 'linewidth', 1.0, 'color',CIColor)
+                line(obj.HoldTMedian_Control{1}(1, 1)*[1 1], obj.HoldTMedian_Chemo{1}(1, [2 3]), 'linewidth', 1.0, 'color',CIColor)
+                MarkerSize = 65;
+                scatter(obj.HoldTMedian_Control{1}(1, 1), ...
+                    obj.HoldTMedian_Chemo{1}(1, 1), ...
+                    'Marker', CueSymbol, 'SizeData', MarkerSize, 'LineWidth', 1, ...
+                    'MarkerFaceColor', SessionsCol, 'MarkerEdgeColor', 'k', 'MarkerFaceAlpha',MarkerAlpha);
+            end
 
             % Plot uncue trials
             line(obj.HoldTMedian_Control{2}(1, [2 3]), obj.HoldTMedian_Chemo{2}(1, 1)*[1 1], 'linewidth', 1.0, 'color',CIColor)
@@ -354,32 +366,40 @@ classdef KornblumGroupClass
                 'MarkerFaceColor', SessionsCol, 'MarkerEdgeColor', 'k', 'MarkerFaceAlpha',MarkerAlpha);
 
             % Plot markers
-            scatter(HoldTimeRange(2)-0.05, HoldTimeRange(1)+0.2, 'Marker', CueSymbol, 'SizeData', MarkerSize, 'LineWidth', 1, ...
-                'MarkerFaceColor', SessionsCol, 'MarkerEdgeColor', 'none', 'MarkerFaceAlpha',MarkerAlpha);
-            text(HoldTimeRange(2), HoldTimeRange(1)+0.2, 'Cue', 'fontName', 'dejavu sans', 'fontsize', 8)
+            if plot_cue
+                scatter(HoldTimeRange(2)-0.05, HoldTimeRange(1)+0.2, 'Marker', CueSymbol, 'SizeData', MarkerSize, 'LineWidth', 1, ...
+                    'MarkerFaceColor', SessionsCol, 'MarkerEdgeColor', 'none', 'MarkerFaceAlpha',MarkerAlpha);
+                text(HoldTimeRange(2), HoldTimeRange(1)+0.2, 'Cue', 'fontName', 'dejavu sans', 'fontsize', 8)
+            end
 
             scatter(HoldTimeRange(2)-0.05, HoldTimeRange(1)+0.1, 'Marker', UncueSymbol, 'SizeData', MarkerSize, 'LineWidth', 1, ...
                 'MarkerFaceColor', SessionsCol, 'MarkerEdgeColor', 'none', 'MarkerFaceAlpha',MarkerAlpha);
             text(HoldTimeRange(2), HoldTimeRange(1)+0.1, 'Uncue', 'fontName', 'dejavu sans', 'fontsize', 8)
  
             xlevel = xlevel +7;
-            IQRRange = [0 0.6];
+            % tempvar = reshape([cell2mat(obj.HoldTMedian_Control)  cell2mat(obj.HoldTMedian_Chemo)], 1, []);
+            tempvar = [cell2mat(obj.HoldTMedian_Control)  cell2mat(obj.HoldTMedian_Chemo)];
+            tempvar = tempvar(2,:);
+            IQRRange = round([min(tempvar)-0.1 max(tempvar)+0.1], 2);
+
+            ticks =round((IQRRange(1):diff(IQRRange)/5:IQRRange(2)),2);
             ha_HoldT2 = axes('nextplot', 'add', 'unit', 'centimeters', 'position',[xlevel ylevel 5 5], 'xlim', IQRRange, ...
-                'xtick',[0:0.1:3], 'ylim', IQRRange,'ytick', [0:0.1:3], 'ticklength', [0.02 0.1]);
+                'xtick',ticks, 'ylim', IQRRange,'ytick',ticks, 'ticklength', [0.02 0.1]);
             line(IQRRange, IQRRange, 'linestyle','-.', 'linewidth', 1, 'color', [0.6 0.6 0.6])
             title('Hold time (IQR)')
-            xlabel('Control (sec)')
+            xlabel('Saline (sec)')
             ylabel('Chemo (sec)')
-
+           
             % Plot cue trials (IQR)
-            line(obj.HoldTMedian_Control{1}(2, [2 3]), obj.HoldTMedian_Chemo{1}(2, 1)*[1 1], 'linewidth', 1.0, 'color',CIColor)
-            line(obj.HoldTMedian_Control{1}(2, 1)*[1 1], obj.HoldTMedian_Chemo{1}(2, [2 3]), 'linewidth', 1.0, 'color',CIColor)
-            MarkerSize = 45;
-
-            scatter(obj.HoldTMedian_Control{1}(2, 1), ...
-                obj.HoldTMedian_Chemo{1}(2, 1), ...
-                'Marker', CueSymbol, 'SizeData', MarkerSize, 'LineWidth', 1, ...
-                'MarkerFaceColor', SessionsCol, 'MarkerEdgeColor', 'none', 'MarkerFaceAlpha',MarkerAlpha);
+            if plot_cue
+                line(obj.HoldTMedian_Control{1}(2, [2 3]), obj.HoldTMedian_Chemo{1}(2, 1)*[1 1], 'linewidth', 1.0, 'color',CIColor)
+                line(obj.HoldTMedian_Control{1}(2, 1)*[1 1], obj.HoldTMedian_Chemo{1}(2, [2 3]), 'linewidth', 1.0, 'color',CIColor)
+                MarkerSize = 45;
+                scatter(obj.HoldTMedian_Control{1}(2, 1), ...
+                    obj.HoldTMedian_Chemo{1}(2, 1), ...
+                    'Marker', CueSymbol, 'SizeData', MarkerSize, 'LineWidth', 1, ...
+                    'MarkerFaceColor', SessionsCol, 'MarkerEdgeColor', 'none', 'MarkerFaceAlpha',MarkerAlpha);            
+            end
 
             % Plot uncue trials (IQR)
             line(obj.HoldTMedian_Control{2}(2, [2 3]), obj.HoldTMedian_Chemo{2}(2, 1)*[1 1], 'linewidth', 1.0, 'color',CIColor)
@@ -389,6 +409,7 @@ classdef KornblumGroupClass
                 obj.HoldTMedian_Chemo{2}(2, 1), ...
                 'Marker', UncueSymbol, 'SizeData', MarkerSize, 'LineWidth', 1, ...
                 'MarkerFaceColor', SessionsCol, 'MarkerEdgeColor', 'none', 'MarkerFaceAlpha',MarkerAlpha);
+            axis auto
 
             ylevel2 = ylevel+7.5;
             xlevel = 7;
@@ -400,11 +421,16 @@ classdef KornblumGroupClass
             maxPDF = max([max(obj.PDF_HoldT_Control(:)) max(obj.PDF_HoldT_Chemo(:))])*1.25;
             FPLineStyles = {'-', '-.'};
             line(ha1s, [1 1]*unique(obj.MixedFP)/1000, [0, maxPDF], 'linestyle', ':', 'color', [0.5 0.5 0.5], 'linewidth', 1)
-
+ 
             for i =1:size(obj.PDF_HoldT_Control, 2)
+                if plot_cue==0
+                    if i ==1
+                        continue
+                    end
+                end
                 plot(ha1s, obj.HoldTbinEdges,obj.PDF_HoldT_Control(:, i), 'color', colors{1}, 'linewidth', 2/i);
                 plot(ha1s, obj.HoldTbinEdges,obj.PDF_HoldT_Chemo(:, i), 'color', colors{2}, 'linewidth', 2/i);
-            end;
+            end
             set(ha1s, 'ylim', [0, maxPDF])
 
             % CDF
@@ -416,16 +442,23 @@ classdef KornblumGroupClass
             line(ha1c, [1 1]*unique(obj.MixedFP)/1000, [0, 1], 'linestyle', ':', 'color', [0.5 0.5 0.5], 'linewidth', 1)
 
             for i =1:size(obj.CDF_HoldT_Control, 2)
+                if plot_cue==0
+                    if i ==1
+                        continue
+                    end
+                end
                 plot(ha1c, obj.HoldTbinEdges,obj.CDF_HoldT_Control(:, i), 'color', colors{1}, 'linewidth', 2/i);
                 plot(ha1c, obj.HoldTbinEdges,obj.CDF_HoldT_Chemo(:, i), 'color', colors{2}, 'linewidth', 2/i);
             end;
-            set(ha1s, 'ylim', [0, maxPDF])           
-    
-           % add legend
-            line(ha1c, maxHoldTime+[.5 .8]-1, [0.5 0.5], 'color', colors{1}, 'linewidth', 2)
-            text(ha1c, maxHoldTime +.85-1, 0.5, 'Control (Cue)', 'fontname', 'dejavu sans','fontsize',  7);
-            line(ha1c, maxHoldTime+[.5 .8]-1, [0.4 0.4], 'color', colors{2}, 'linewidth', 2)
-            text(ha1c, maxHoldTime +.85-1, 0.4, 'Chemo (Cue)', 'fontname', 'dejavu sans','fontsize',  7);
+            set(ha1s, 'ylim', [0, maxPDF])
+
+            % add legend
+            if plot_cue
+                line(ha1c, maxHoldTime+[.5 .8]-1, [0.5 0.5], 'color', colors{1}, 'linewidth', 2)
+                text(ha1c, maxHoldTime +.85-1, 0.5, 'Control (Cue)', 'fontname', 'dejavu sans','fontsize',  7);
+                line(ha1c, maxHoldTime+[.5 .8]-1, [0.4 0.4], 'color', colors{2}, 'linewidth', 2)
+                text(ha1c, maxHoldTime +.85-1, 0.4, 'Chemo (Cue)', 'fontname', 'dejavu sans','fontsize',  7);
+            end
 
             line(ha1c, maxHoldTime+[.5 .8]-1, [0.3 0.3], 'color', colors{1}, 'linewidth', 1)
             text(ha1c, maxHoldTime +.85-1, 0.3, 'Control (Uncue)', 'fontname', 'dejavu sans','fontsize',  7);
@@ -501,8 +534,16 @@ classdef KornblumGroupClass
                 'xticklabel', {'Control (Cue)', 'Chemo', 'Control (Uncue)', 'Chemo'},'xticklabelrotation', 45)   
             ylabel('Hold time (s)')
 
-            uicontrol('Style', 'text', 'parent', obj.Fig3, 'units', 'normalized', 'position', [0.1 0.95 0.25 0.04],...
-                'string', [obj.Subject{1} ' | Control vs DCZ'], 'fontweight', 'bold', 'backgroundcolor', [1 1 1], 'fontsize', 8, 'horizontalalignment', 'left');
+            % uicontrol('Style', 'text', 'parent', obj.Fig3, 'units', 'normalized', 'position', [0.1 0.95 0.25 0.04],...
+            %     'string', [obj.Subject{1} ' | Control vs DCZ'], 'fontweight', 'bold', 'backgroundcolor', [1 1 1], 'fontsize', 8, 'horizontalalignment', 'left');
+            annotation(hf, 'textbox', [0.1 0.95 0.25 0.04], ...
+                'String', [obj.Subject{1} ' | Control vs DCZ'], ...
+                'FontWeight', 'bold', ...
+                'BackgroundColor', [1 1 1], ...
+                'FontSize', 8, ...
+                'HorizontalAlignment', 'left', ...
+                'EdgeColor', 'none');   % 去掉边框
+
 
             % Control and DCZ trials should appear as pairs
             xlevel = 19;
@@ -1035,7 +1076,7 @@ classdef KornblumGroupClass
             WhiskerColor = [132, 121, 225]/255;
             IndDCZ = find(strcmp(obj.TreatmentSessions, 'DCZ'));
 
-            figure(obj.Fig2); clf(obj.Fig2)
+            hf = figure(obj.Fig2); clf(obj.Fig2)
             set(gcf, 'unit', 'centimeters', 'position',[2 2 31 19.25], 'paperpositionmode', 'auto', 'color', 'w')
 
             % Plot press duration across these sessions
@@ -1504,18 +1545,35 @@ classdef KornblumGroupClass
                 hVio2(iv).ViolinPlot.FaceColor = [0.8 0.8 0.8];
                 hVio2(iv).BoxColor=[253, 138, 138]/255;
                 hVio2(iv).BoxWidth = 0.03;
-            end;
+            end
 
             set(ha_violin_uncued, 'xtick', unique(obj.PressIndex), 'xticklabels', obj.Dates, 'box', 'off','XTickLabelRotation', 35);
             line(ha_violin_uncued, get(ha_violin_cued, 'xlim'), [unique(obj.MixedFP) unique(obj.MixedFP)], 'color', 'k', 'linewidth', 1, 'linestyle', '--')
 
-            hui_1 = uicontrol('Style', 'text', 'parent', obj.Fig2, 'units', 'normalized', 'position', [0.1 0.965 0.2 0.03],...
-                'string',  ['Subject: ' obj.Subject{1}], 'fontweight', 'bold', ...
-                'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' , 'fontname', 'dejavu sans' );
-
-            hui_2 = uicontrol('Style', 'text', 'parent', obj.Fig2, 'units', 'normalized', 'position', [0.2 0.965 0.4 0.03],...
-                'string', ['Protocol: ' obj.Protocols{1}], 'fontweight', 'bold', ...
-                'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' , 'fontname', 'dejavu sans');
+            % hui_1 = uicontrol('Style', 'text', 'parent', obj.Fig2, 'units', 'normalized', 'position', [0.1 0.965 0.2 0.03],...
+            %     'string',  ['Subject: ' obj.Subject{1}], 'fontweight', 'bold', ...
+            %     'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' , 'fontname', 'dejavu sans' );
+            % 
+            % hui_2 = uicontrol('Style', 'text', 'parent', obj.Fig2, 'units', 'normalized', 'position', [0.2 0.965 0.4 0.03],...
+            %     'string', ['Protocol: ' obj.Protocols{1}], 'fontweight', 'bold', ...
+            %     'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' , 'fontname', 'dejavu sans');
+            annotation(hf, 'textbox', [0.1 0.965 0.2 0.03], ...
+                'String', ['Subject: ' obj.Subject{1}], ...
+                'FontWeight', 'bold', ...
+                'BackgroundColor', [1 1 1], ...
+                'HorizontalAlignment', 'left', ...
+                'FontName', 'dejavu sans', ...
+                'EdgeColor', 'none',...
+                'Interpreter','none');
+            
+            annotation(hf, 'textbox', [0.2 0.965 0.4 0.03], ...
+                'String', ['Protocol: ' obj.Protocols{1}], ...
+                'FontWeight', 'bold', ...
+                'BackgroundColor', [1 1 1], ...
+                'HorizontalAlignment', 'left', ...
+                'FontName', 'dejavu sans', ...
+                'EdgeColor', 'none',...
+                'Interpreter','none');
         end
 
         function outputArg = Plot(obj)
@@ -1527,7 +1585,7 @@ classdef KornblumGroupClass
             FPColor = [189, 198, 184]/255;
             WhiskerColor = [132, 121, 225]/255;
 
-            figure(20); clf(20)
+            hf = figure(20); clf(20)
             set(gcf, 'unit', 'centimeters', 'position',[2 2 28 19], 'paperpositionmode', 'auto', 'color', 'w')
 
             % Plot press duration across these sessions
@@ -2134,13 +2192,28 @@ classdef KornblumGroupClass
 
             axis off
 
-            hui_1 = uicontrol('Style', 'text', 'parent', 20, 'units', 'normalized', 'position', [0.1 0.965 0.2 0.03],...
-                'string',  ['Subject: ' obj.Subject{1}], 'fontweight', 'bold', ...
-                'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' , 'fontname', 'dejavu sans' );
-
-            hui_2 = uicontrol('Style', 'text', 'parent', 20, 'units', 'normalized', 'position', [0.2 0.965 0.4 0.03],...
-                'string', ['Protocol: ' obj.Protocols{1}], 'fontweight', 'bold', ...
-                'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' , 'fontname', 'dejavu sans');
+            % hui_1 = uicontrol('Style', 'text', 'parent', 20, 'units', 'normalized', 'position', [0.1 0.965 0.2 0.03],...
+            %     'string',  ['Subject: ' obj.Subject{1}], 'fontweight', 'bold', ...
+            %     'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' , 'fontname', 'dejavu sans' );
+            % 
+            % hui_2 = uicontrol('Style', 'text', 'parent', 20, 'units', 'normalized', 'position', [0.2 0.965 0.4 0.03],...
+            %     'string', ['Protocol: ' obj.Protocols{1}], 'fontweight', 'bold', ...
+            %     'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' , 'fontname', 'dejavu sans');
+            annotation(hf, 'textbox', [0.1 0.965 0.2 0.03], ...
+                'String', ['Subject: ' obj.Subject{1}], ...
+                'FontWeight', 'bold', ...
+                'BackgroundColor', [1 1 1], ...
+                'HorizontalAlignment', 'left', ...
+                'FontName', 'dejavu sans', ...
+                'EdgeColor', 'none');
+            
+            annotation(hf, 'textbox', [0.2 0.965 0.4 0.03], ...
+                'String', ['Protocol: ' obj.Protocols{1}], ...
+                'FontWeight', 'bold', ...
+                'BackgroundColor', [1 1 1], ...
+                'HorizontalAlignment', 'left', ...
+                'FontName', 'dejavu sans', ...
+                'EdgeColor', 'none');
 
         end
 

@@ -65,6 +65,7 @@ classdef KornblumClass
         function obj = KornblumClass(medfile)
             if nargin==0
                 medfile = dir('*_Subject*.txt');
+                medfile = medfile(~startsWith({medfile.name},'.'));
                 if length(medfile)>1
                     clc
                     error('More than one MED file is found')
@@ -170,10 +171,12 @@ classdef KornblumClass
         function obj = set.Treatment(obj,treatment)
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
-            if ismember(treatment, {'NaN', 'Saline', 'DCZ'})
-                obj.Treatment = string(treatment);
-            else
-                error(['Treatment can only be: NaN, Saline, DCZ'])
+            if ~isempty(treatment)
+                if ismember(treatment, {'NaN', 'Saline', 'DCZ'})
+                    obj.Treatment = string(treatment);
+                else
+                    error(['Treatment can only be: NaN, Saline, DCZ'])
+                end;
             end;
         end
 
@@ -230,9 +233,10 @@ classdef KornblumClass
         function obj = set.Strain(obj,strain)
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
-            if ismember(strain, {'BN', 'Wistar', 'LE', 'SD', 'Hybrid'})
+            if ~isempty(strain) && ismember(strain, {'BN', 'Wistar', 'LE', 'SD', 'Hybrid'})
                 obj.Strain = string(strain);
-            end;
+            end
+
         end
 
         function value = get.RTDistribution(obj)
@@ -423,29 +427,35 @@ classdef KornblumClass
             value = rt_table;
         end
 
-        function Save(obj, savepath)
+        function Save(obj, savepath_and_name)
             if nargin<2
                 savepath = pwd;
                 save(fullfile(savepath, ['KbClass_' upper(obj.Subject)  '_' [strrep(obj.Session(1:10), '-', '') '_' obj.Session(12:end)]]),  'obj');
+            else
+                save(savepath_and_name,  'obj');
             end
         end
 
-        function Print(obj, targetDir)
-            savename = ['KbClass_' upper(obj.Subject)  '_' [strrep(obj.Session(1:10), '-', '') '_' obj.Session(12:end)]];
-            if nargin==2
-                % check if targetDir exists
-                if ~contains(targetDir, '/') && ~contains(targetDir, '\')
-                    % so it is a relative path
-                    if ~exist(targetDir, 'dir')
-                        mkdir(targetDir)
-                    end;
-                end;
-                savename = fullfile(targetDir, savename)
+        function Print(obj, path_name)
+            if nargin<2
+                savename = ['KbClass_' upper(obj.Subject)  '_' [strrep(obj.Session(1:10), '-', '') '_' obj.Session(12:end)]];
+            else
+                savename = path_name;
             end;
+
+%             if nargin==2
+%                 % check if targetDir exists
+%                 if ~contains(targetDir, '/') && ~contains(targetDir, '\')
+%                     % so it is a relative path
+%                     if ~exist(targetDir, 'dir')
+%                         mkdir(targetDir)
+%                     end;
+%                 end;
+%                 savename = fullfile(targetDir, savename)
+%             end;
  
-            print (obj.Fig1,'-dpdf', [savename], '-bestfit')
+%             print (obj.Fig1,'-depsc', [savename])
             print (obj.Fig1,'-dpng', [savename])
-            saveas(obj.Fig1, savename, 'fig')
         end;
 
         function PlotDistribution(obj)
@@ -466,7 +476,7 @@ classdef KornblumClass
             col_perf = [85 225 0
                 255 0 0
                 140 140 140]/255;
-            figure(obj.Fig1); clf(obj.Fig1)
+            hf = figure(obj.Fig1); clf(obj.Fig1)
             set(gcf, 'unit', 'centimeters', 'position',[2 2 18 18], 'paperpositionmode', 'auto', 'color', 'w')
 
             plotsize1 = [6, 2.8];
@@ -474,17 +484,32 @@ classdef KornblumClass
             plotsize4 = [2.5 2.8];
             plotsize5 = [2, 0.5];
 
-            hui_1 = uicontrol('Style', 'text', 'parent', obj.Fig1, 'units', 'normalized', 'position', [0.1 0.945 0.2 0.05],...
-                'string', [obj.Subject], 'fontweight', 'bold', ...
-                'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' );
+            % hui_1 = uicontrol('Style', 'text', 'parent', obj.Fig1, 'units', 'normalized', 'position', [0.1 0.945 0.2 0.05],...
+            %     'string', [obj.Subject], 'fontweight', 'bold', ...
+            %     'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' );
+            % 
+            % hui_2 = uicontrol('Style', 'text', 'parent', obj.Fig1, 'units', 'normalized', 'position', [0.2 0.945 0.3 0.05],...
+            %     'string', [obj.Session], 'fontweight', 'bold', ...
+            %     'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' );
+            % 
+            % hui_3 = uicontrol('Style', 'text', 'parent', obj.Fig1, 'units', 'normalized', 'position', [0.4 0.945 0.2 0.05],...
+            %     'string', [obj.Treatment], 'fontweight', 'bold', ...
+            %     'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' );
 
-            hui_2 = uicontrol('Style', 'text', 'parent', obj.Fig1, 'units', 'normalized', 'position', [0.2 0.945 0.3 0.05],...
-                'string', [obj.Session], 'fontweight', 'bold', ...
-                'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' );
-
-            hui_3 = uicontrol('Style', 'text', 'parent', obj.Fig1, 'units', 'normalized', 'position', [0.4 0.945 0.2 0.05],...
-                'string', [obj.Treatment], 'fontweight', 'bold', ...
-                'backgroundcolor', [1 1 1], 'HorizontalAlignment', 'left' );
+            annotation(hf, 'textbox', [0.1 0.945 0.2 0.05], ...
+                'String', obj.Subject, 'FontWeight','bold', ...
+                'EdgeColor','none','BackgroundColor','w', ...
+                'HorizontalAlignment','left');
+            
+            annotation(hf, 'textbox', [0.2 0.945 0.3 0.05], ...
+                'String', obj.Session, 'FontWeight','bold', ...
+                'EdgeColor','none','BackgroundColor','w', ...
+                'HorizontalAlignment','left');
+            
+            annotation(hf, 'textbox', [0.4 0.945 0.2 0.05], ...
+                'String', obj.Treatment, 'FontWeight','bold', ...
+                'EdgeColor','none','BackgroundColor','w', ...
+                'HorizontalAlignment','left');
 
             ha1 = axes;            
             title('Cue trials', 'fontsize', 7, 'FontWeight', 'bold');

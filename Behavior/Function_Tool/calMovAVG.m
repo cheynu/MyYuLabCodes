@@ -36,9 +36,9 @@ while countStart <= length(time)
     thisOutcome = outcome(thisWin);
     switch class(thisOutcome)
         case 'logical'
-            yo = [yo; 100.*sum(thisOutcome)./length(thisOutcome)]; % 'Valid'
+            yo = [yo; sum(thisOutcome)./length(thisOutcome)]; % 'Valid'
         case 'string'
-            yo = [yo; 100.*sum(strcmp(thisOutcome,tarStr))./length(thisOutcome)]; % 'Valid'
+            yo = [yo; sum(strcmp(thisOutcome,tarStr))./length(thisOutcome)]; % 'Valid'
         otherwise
             if isnumeric(thisOutcome)
                 switch avgMethod

@@ -1,0 +1,180 @@
+function hf = plot_example_trajectory_frame(S, varargin)
+%PLOT_EXAMPLE_TRAJECTORY_FRAME
+% Plot a saved example frame with tracked trajectories overlaid.
+%
+% Input
+%   S   struct with fields:
+%         .frame
+%         .TT
+%         .anm_session
+%         .trial
+%
+% Name-value
+%   'MarkerSize'      default 15
+%   'FigureWidthCm'   default 4
+%   'FigureNumber'    default []
+%   'SaveFigure'      default true
+%   'UseKeptOnly'     default true
+%   'BodyParts'       default inferred from S.TT.body_part
+%
+% Output
+%   hf   figure handle
+
+p = inputParser;
+p.addRequired('S', @(x) isstruct(x) && isfield(x, 'frame') && isfield(x, 'TT'));
+p.addParameter('MarkerSize', 15, @(x) isnumeric(x) && isscalar(x) && x > 0);
+p.addParameter('FigureWidthCm', 4, @(x) isnumeric(x) && isscalar(x) && x > 0);
+p.addParameter('FigureNumber', [], @(x) isempty(x) || (isnumeric(x) && isscalar(x)));
+p.addParameter('SaveFigure', true, @(x) islogical(x) && isscalar(x));
+p.addParameter('UseKeptOnly', true, @(x) islogical(x) && isscalar(x));
+p.addParameter('BodyParts', [], @(x) isempty(x) || iscell(x) || isstring(x));
+
+p.parse(S, varargin{:});
+
+ms = p.Results.MarkerSize;
+fig_w = p.Results.FigureWidthCm;
+fig_num = p.Results.FigureNumber;
+save_figure = p.Results.SaveFigure;
+use_kept_only = p.Results.UseKeptOnly;
+body_parts = p.Results.BodyParts;
+
+TT = S.TT;
+frame = S.frame;
+
+if isempty(body_parts)
+    body_parts = unique(string(TT.body_part), 'stable');
+else
+    body_parts = string(body_parts(:));
+end
+
+% colors
+body_colors = struct();
+body_colors.LeftEar  = [51 115 204] / 255;
+body_colors.LeftPaw  = [241 101 34] / 255;
+body_colors.RightPaw = [46 160 67] / 255;
+
+[nr, nc, ~] = size(frame);
+fig_h = fig_w * nr / nc;
+
+if isempty(fig_num)
+    hf = figure('Color', 'w', 'Units', 'centimeters', ...
+        'Position', [2 2 fig_w fig_h], 'Visible', 'on');
+else
+    hf = figure(fig_num); clf(hf);
+    set(hf, 'Color', 'w', 'Units', 'centimeters', ...
+        'Position', [2 2 fig_w fig_h], 'Visible', 'on');
+end
+
+ax = axes('Parent', hf, 'Units', 'normalized', 'Position', [0 0 1 1]);
+imshow(frame, 'Parent', ax);
+hold(ax, 'on');
+
+for i = 1:numel(body_parts)
+    bp = body_parts(i);
+    m = string(TT.body_part) == bp;
+
+    if use_kept_only
+        if ismember('kept_mask', TT.Properties.VariableNames)
+            m = m & logical(TT.kept_mask);
+        elseif ismember('keep_run_mask', TT.Properties.VariableNames)
+            m = m & logical(TT.keep_run_mask);
+        end
+    end
+
+    if ~any(m)
+        continue
+    end
+
+    x = TT.x_s(m);
+    y = TT.y_s(m);
+
+    if isfield(body_colors, char(bp))
+        c = body_colors.(char(bp));
+    else
+        c = [1 1 1];
+    end
+
+    scatter(ax, x, y, ms, ...
+        'MarkerFaceColor', c, ...
+        'MarkerEdgeColor', 'none', ...
+        'MarkerFaceAlpha', 0.9);
+end
+
+% flip left-right after plotting
+set(ax, 'XDir', 'reverse');
+
+axis(ax, 'image');
+axis(ax, 'off');
+
+% -------- scale bar (2 cm x 2 cm) --------
+if isfield(S, 'scale_px_per_cm')
+    scale_px_per_cm = S.scale_px_per_cm;
+else
+    scale_px_per_cm = 450/6; % fallback
+end
+
+bar_cm = 2;
+bar_px = bar_cm * scale_px_per_cm;
+
+[nr, nc, ~] = size(frame);
+
+margin_px = 20;
+
+% Because XDir is reversed, "right" is small x
+x0 = margin_px + bar_px;   % move slightly inward
+y0 = nr - margin_px;       % bottom
+
+% horizontal (leftward visually)
+line(ax, [x0, x0 - bar_px], [y0 - 50, y0 - 50], ...
+    'Color', 'w', 'LineWidth', 1.5);
+
+% vertical (upward)
+line(ax, [x0, x0], [y0 - 50, y0 - bar_px - 50], ...
+    'Color', 'w', 'LineWidth', 1.5);
+
+% save
+if save_figure
+    outFolder = fullfile(pwd, 'figure', 'examples');
+    if ~exist(outFolder, 'dir')
+        mkdir(outFolder);
+    end
+
+    figName = sprintf('example_trajctory_%s_%s', ...
+        local_safe_str(S.anm_session), local_safe_str(S.trial));
+
+    save_fig(hf, figName, outFolder, 'Formats', {"png","pdf"});
+
+    write_meta( ...
+        figName, ...
+        'MetaFolder', outFolder, ...
+        'Description', 'Example frame with overlaid tracked trajectories', ...
+        'Purpose', 'Visualize raw frame and body-part trajectories for a selected example', ...
+        'GeneratorFunction', 'plot_example_trajectory_frame', ...
+        'GeneratorScript', '', ...
+        'Inputs', { ...
+            sprintf('anm_session: %s', string(S.anm_session)), ...
+            sprintf('trial: %s', string(S.trial)), ...
+            sprintf('index: %d', local_getfield_safe(S, 'index', NaN)), ...
+            sprintf('time: %.6g', local_getfield_safe(S, 'time', NaN)), ...
+            sprintf('gain: %.6g', local_getfield_safe(S, 'gain', NaN)), ...
+            sprintf('marker size: %.6g', ms), ...
+            sprintf('use kept only: %d', use_kept_only), ...
+            sprintf('body parts: %s', strjoin(body_parts, ', ')) ...
+        });
+end
+
+end
+
+function out = local_safe_str(x)
+x = string(x);
+x = regexprep(x, '[^\w-]+', '_');
+out = char(x);
+end
+
+function out = local_getfield_safe(S, fname, default_val)
+if isfield(S, fname)
+    out = S.(fname);
+else
+    out = default_val;
+end
+end

@@ -27,9 +27,8 @@ ind_leverpress=find(Time_events(:, 2)==1);
 n_leverpress = length(ind_leverpress);
 % time of presses
 time_leverpress= Time_events(ind_leverpress, 1);
-
 ind_lever_release=find(Time_events(:, 2)==4);
-n_leverrelease = length(ind_lever_release);
+
 % time of releases
 time_leverrelease= Time_events(ind_lever_release, 1);
 
@@ -38,20 +37,22 @@ if length(time_leverrelease)<length(time_leverpress) % final release was not reg
 %     n_leverpress = length(ind_leverpress);
     % time of presses
     time_leverpress= time_leverpress(1:end-1);
-end;
+end
 
 % press duration for each press, in ms
 if time_leverrelease(1)<time_leverpress(1)
     time_leverrelease(1)=[];
-end;
+    ind_lever_release(1)=[];
+end
 
 if time_leverrelease(end)<time_leverpress(end)
     time_leverpress(end)=[];
-end;
+    ind_leverpress(end)=[];
+end
 
 press_durs = (time_leverrelease-time_leverpress)*1000;
 n_leverpress = length(time_leverpress);
-
+n_leverrelease = length(ind_lever_release);
 %% find out reward time
 
 ind_reward=find(Time_events(:, 2)==13);

@@ -7,8 +7,8 @@ function output = DisplayMEDs
 
 % find out name of the rat
 thisFolder = pwd;
-thisFolderSplitted = strsplit(thisFolder, '\');
-NameIndex =  find(strcmp(thisFolderSplitted, 'ANMs'))+1;
+thisFolderSplitted = strsplit(thisFolder, filesep);
+NameIndex =  find(contains(thisFolderSplitted, 'ANMs'))+1;
 ratName = thisFolderSplitted{NameIndex};
 disp(['this rat is: ', ratName])
 
